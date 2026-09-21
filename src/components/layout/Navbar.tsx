@@ -494,23 +494,56 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onToggleSidebar, o
                         setShowUserMenu(false);
                         if (onNavigate) onNavigate('profil-guru');
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors mb-1"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors mb-1 cursor-pointer"
                     >
                       <UserIcon className="w-4 h-4 text-indigo-600" />
                       <span>Lihat Profil Saya</span>
                     </button>
                   )}
 
-                  <button
-                    onClick={() => {
-                      logout();
-                      setShowUserMenu(false);
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Keluar dari Akun</span>
-                  </button>
+                  {/* Quick User Switcher */}
+                  <div className="pt-2 pb-1 border-t border-slate-100 my-1">
+                    <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Ganti Akun Cepat
+                    </p>
+                    <div className="space-y-0.5">
+                      {demoUsers.slice(0, 4).map((u) => {
+                        const isCurrent = u.id === currentUser?.id;
+                        return (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              switchUser(u);
+                              setShowUserMenu(false);
+                            }}
+                            className={`flex items-center justify-between w-full px-3 py-1.5 text-xs rounded-lg transition-colors text-left cursor-pointer ${
+                              isCurrent
+                                ? 'bg-indigo-50 text-indigo-700 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="truncate max-w-[170px]">{u.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-slate-200/70 text-slate-600 font-normal shrink-0">
+                              {u.role === 'ADMIN_DINAS' ? 'Admin' : u.role === 'KEPALA_SEKOLAH' ? 'KS' : u.role === 'PENGAWAS' ? 'Pengawas' : 'Guru'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-1 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        logout();
+                        setShowUserMenu(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Keluar dari Akun</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}

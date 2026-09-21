@@ -52,11 +52,11 @@ export const api = {
     return request<User[]>(`${BASE_URL}/auth/demo-users`);
   },
 
-  async login(identifier: string, password?: string, role?: string): Promise<{ success: boolean; token: string; user: User }> {
+  async login(identifier?: string, password?: string, role?: string, userId?: string): Promise<{ success: boolean; token: string; user: User }> {
     return request<{ success: boolean; token: string; user: User }>(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password, role })
+      body: JSON.stringify({ identifier, password, role, userId })
     });
   },
 

@@ -28,57 +28,78 @@ async function startServer() {
   });
 
   app.post('/api/auth/login', (req: Request, res: Response) => {
-    const { identifier, password, role } = req.body;
+    const { identifier, password, role, userId } = req.body;
     const cleanId = typeof identifier === 'string' ? identifier.trim() : '';
     const cleanPwd = typeof password === 'string' ? password.trim() : '';
+    const stripNip = (str: string) => str.replace(/[\s.-]/g, '');
 
     let user: User | undefined;
 
-    // 1. Admin Dinas login: user="admin" or "admin_dinas"
-    if (cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas') {
+    // 0. Direct userId lookup (from 1-click login or role switcher)
+    if (userId) {
+      user = db.users.find((u) => u.id === userId);
+    }
+
+    // 1. Admin Dinas shortcut: user="admin" or "admin_dinas"
+    if (!user && (cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas')) {
       user = db.users.find((u) => u.role === 'ADMIN_DINAS') || db.users[0];
-      if (cleanPwd && cleanPwd !== 'admin' && cleanPwd !== 'admin123' && (user.password && cleanPwd !== user.password)) {
-        return res.status(401).json({ error: 'Password Admin salah. Gunakan password: admin' });
+      if (cleanPwd && cleanPwd !== 'admin' && cleanPwd !== 'admin123' && cleanPwd !== '123456' && (user.password && cleanPwd !== user.password)) {
+        return res.status(401).json({ error: 'Password Admin salah. Gunakan password: admin atau 123456' });
       }
-    } else if (cleanId) {
-      // 2. Lookup user by NIP, username, email, or name
+    } else if (!user && cleanId) {
+      const cleanIdLower = cleanId.toLowerCase();
+      const strippedCleanId = stripNip(cleanId);
+
+      // 2. Lookup user by NIP, username, email, email prefix, or full name
       user = db.users.find((u) => {
-        const matchNip = u.nip === cleanId;
-        const matchUsername = u.username?.toLowerCase() === cleanId.toLowerCase();
-        const matchEmail = u.email?.toLowerCase() === cleanId.toLowerCase();
-        const matchName = u.name?.toLowerCase() === cleanId.toLowerCase();
-        return matchNip || matchUsername || matchEmail || matchName;
+        const matchNip = u.nip === cleanId || (u.nip && stripNip(u.nip) === strippedCleanId);
+        const matchUsername = u.username?.toLowerCase() === cleanIdLower;
+        const matchEmail = u.email?.toLowerCase() === cleanIdLower;
+        const matchEmailPrefix = u.email?.toLowerCase().split('@')[0] === cleanIdLower;
+        const matchNameExact = u.name?.toLowerCase() === cleanIdLower;
+        const matchNameContains = u.name?.toLowerCase().includes(cleanIdLower);
+        return matchNip || matchUsername || matchEmail || matchEmailPrefix || matchNameExact || matchNameContains;
       });
 
       // 3. Fallback shortcut keywords
       if (!user) {
-        const lower = cleanId.toLowerCase();
-        if (lower.includes('dinas') || lower === 'admin' || lower.includes('didik')) {
+        if (cleanIdLower.includes('dinas') || cleanIdLower === 'admin' || cleanIdLower.includes('didik')) {
           user = db.users.find((u) => u.role === 'ADMIN_DINAS');
-        } else if (lower.includes('pengawas') || lower.includes('bambang') || lower.includes('siti')) {
+        } else if (cleanIdLower.includes('pengawas') || cleanIdLower.includes('bambang') || cleanIdLower.includes('siti') || cleanIdLower.includes('endang')) {
           user = db.users.find((u) => u.role === 'PENGAWAS');
-        } else if (lower.includes('kepala') || lower.includes('ks') || lower.includes('wahyuni') || lower.includes('agus')) {
+        } else if (cleanIdLower.includes('kepala') || cleanIdLower.includes('ks') || cleanIdLower.includes('kepsek') || cleanIdLower.includes('wahyuni') || cleanIdLower.includes('agus')) {
           user = db.users.find((u) => u.role === 'KEPALA_SEKOLAH');
-        } else if (lower.includes('guru') || lower.includes('sumarni') || lower.includes('anwar') || lower.includes('dewi') || lower.includes('eko')) {
+        } else if (cleanIdLower.includes('guru') || cleanIdLower.includes('sumarni') || cleanIdLower.includes('anwar') || cleanIdLower.includes('dewi') || cleanIdLower.includes('eko')) {
           user = db.users.find((u) => u.role === 'GURU');
         }
       }
 
-      // 4. Password validation for Pengawas, KS, and Guru (Password = NIP)
+      // 4. Password validation (flexible and user-friendly)
       if (user && cleanPwd) {
+        const userFirstName = user.name.toLowerCase().split(/[\s,.]+/)[0] || '';
+        const userNipStripped = stripNip(user.nip || '');
         const isPasswordValid =
           cleanPwd === user.nip ||
-          cleanPwd === 'admin' ||
-          cleanPwd === user.username ||
+          stripNip(cleanPwd) === userNipStripped ||
+          cleanPwd === '123456' ||
+          cleanPwd === '12345678' ||
+          cleanPwd === '123' ||
+          cleanPwd === 'password' ||
+          cleanPwd.toLowerCase() === 'admin' ||
+          cleanPwd.toLowerCase() === 'admin123' ||
+          cleanPwd.toLowerCase() === user.username?.toLowerCase() ||
           (user.password && cleanPwd === user.password) ||
-          cleanPwd === 'pengawas123' ||
-          cleanPwd === 'kepala123' ||
-          cleanPwd === 'guru123' ||
-          cleanPwd === 'admin123';
+          cleanPwd.toLowerCase() === 'pengawas' ||
+          cleanPwd.toLowerCase() === 'pengawas123' ||
+          cleanPwd.toLowerCase() === 'kepala' ||
+          cleanPwd.toLowerCase() === 'kepala123' ||
+          cleanPwd.toLowerCase() === 'guru' ||
+          cleanPwd.toLowerCase() === 'guru123' ||
+          (userFirstName.length >= 3 && cleanPwd.toLowerCase() === userFirstName);
 
         if (!isPasswordValid) {
           return res.status(401).json({
-            error: `Password salah. Untuk akun ${user.role} (${user.name}), gunakan Password = NIP (${user.nip || 'NIP Anda'})`
+            error: `Password salah. Untuk akun ${user.role} (${user.name}), silakan gunakan Password = NIP (${user.nip || 'NIP Anda'}) atau '123456'`
           });
         }
       }
@@ -90,7 +111,7 @@ async function startServer() {
 
     if (!user) {
       return res.status(404).json({
-        error: 'Akun tidak ditemukan. Gunakan "admin" untuk Admin Dinas, atau NIP 18 digit untuk Pengawas, Kepala Sekolah, dan Guru.'
+        error: 'Akun tidak ditemukan. Masukkan NIP, Email (contoh: sumarni.sdntinap3@gmail.com), atau pilih akun cepat di bawah.'
       });
     }
 

@@ -13,7 +13,7 @@ interface AuthContextType {
   unreadNotificationCount: number;
   demoUsers: User[];
   isLoading: boolean;
-  login: (identifier: string, password?: string, role?: string) => Promise<boolean>;
+  login: (identifier?: string, password?: string, role?: string, userId?: string) => Promise<boolean>;
   switchUser: (user: User) => void;
   switchRole: (role: UserRole) => void;
   logout: () => void;
@@ -57,12 +57,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const activeYr = yearsList.find((y) => y.isActive) || yearsList[0] || null;
       setActiveEducationYear(activeYr);
 
-      // Check saved user in session/localStorage or default to Admin Dinas / Guru Sumarni
+      // Check saved user in session/localStorage or default to user
+      const isLoggedOut = localStorage.getItem('si_supervisi_logged_out') === 'true';
       const savedUserId = localStorage.getItem('si_supervisi_user_id');
-      let initialUser = usersList.find((u) => u.id === savedUserId);
-      if (!initialUser) {
-        // Default to Admin Dinas for initial presentation
-        initialUser = usersList.find((u) => u.role === 'ADMIN_DINAS') || usersList[0];
+
+      let initialUser: User | null = null;
+      if (!isLoggedOut) {
+        if (savedUserId) {
+          initialUser = usersList.find((u) => u.id === savedUserId) || null;
+        }
+        if (!initialUser) {
+          // Default to Guru Sumarni (user account) or Admin Dinas
+          initialUser = usersList.find((u) => u.email === 'sumarni.sdntinap3@gmail.com') ||
+                        usersList.find((u) => u.role === 'GURU') ||
+                        usersList.find((u) => u.role === 'ADMIN_DINAS') ||
+                        usersList[0] || null;
+        }
       }
 
       setCurrentUser(initialUser);
@@ -148,11 +158,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const login = async (identifier: string, password?: string, role?: string): Promise<boolean> => {
+  const login = async (identifier?: string, password?: string, role?: string, userId?: string): Promise<boolean> => {
     try {
-      const res = await api.login(identifier, password, role);
+      const res = await api.login(identifier, password, role, userId);
       if (res.success && res.user) {
         setCurrentUser(res.user);
+        localStorage.removeItem('si_supervisi_logged_out');
         localStorage.setItem('si_supervisi_user_id', res.user.id);
         const notifs = await api.getNotifications(res.user.id);
         setNotifications(notifs);
@@ -167,6 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const switchUser = (user: User) => {
     setCurrentUser(user);
+    localStorage.removeItem('si_supervisi_logged_out');
     localStorage.setItem('si_supervisi_user_id', user.id);
     api.getNotifications(user.id).then((notifs) => setNotifications(notifs));
   };
@@ -180,6 +192,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     localStorage.removeItem('si_supervisi_user_id');
+    localStorage.setItem('si_supervisi_logged_out', 'true');
     setCurrentUser(null);
   };
 
