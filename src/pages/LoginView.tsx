@@ -253,7 +253,7 @@ export const LoginView: React.FC = () => {
               {/* Admin Dinas */}
               <button
                 type="button"
-                onClick={() => handleQuickLogin('admin', 'admin')}
+                onClick={() => handleQuickLogin('admin123', 'admin123')}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/80 hover:border-indigo-500/80 hover:bg-slate-900 transition-all text-left flex items-center gap-2.5 group cursor-pointer"
               >
@@ -264,7 +264,7 @@ export const LoginView: React.FC = () => {
                   <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300">
                     {adminUser?.name || 'Didik Setiawan, S.E'}
                   </p>
-                  <p className="text-[10px] text-slate-400 truncate">Admin Dinas</p>
+                  <p className="text-[10px] text-slate-400 truncate">Admin Dinas • admin123</p>
                 </div>
               </button>
             </div>
@@ -356,7 +356,10 @@ export const LoginView: React.FC = () => {
             <div>
               <p className="font-semibold text-slate-300">Bantuan Akses Masuk:</p>
               <p className="mt-0.5">
-                Bisa menggunakan NIP (18 digit), Email resmi, atau Username. Jika lupa password, gunakan password standar <strong className="text-white">123456</strong> atau akun cepat di atas.
+                • <strong>Admin Dinas</strong>: Username <code className="text-indigo-300 bg-slate-800 px-1 py-0.5 rounded">admin123</code> & Password <code className="text-indigo-300 bg-slate-800 px-1 py-0.5 rounded">admin123</code>
+              </p>
+              <p className="mt-0.5">
+                • <strong>Guru, KS, & Pengawas</strong>: Gunakan NIP (18 digit), Email, atau Username dengan password NIP / <strong className="text-white">123456</strong>, atau gunakan tombol 1-klik di atas.
               </p>
             </div>
           </div>

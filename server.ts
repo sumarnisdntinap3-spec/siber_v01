@@ -40,11 +40,11 @@ async function startServer() {
       user = db.users.find((u) => u.id === userId);
     }
 
-    // 1. Admin Dinas shortcut: user="admin" or "admin_dinas"
-    if (!user && (cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas')) {
+    // 1. Admin Dinas shortcut: user="admin123", "admin", or "admin_dinas"
+    if (!user && (cleanId.toLowerCase() === 'admin123' || cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas')) {
       user = db.users.find((u) => u.role === 'ADMIN_DINAS') || db.users[0];
-      if (cleanPwd && cleanPwd !== 'admin' && cleanPwd !== 'admin123' && cleanPwd !== '123456' && (user.password && cleanPwd !== user.password)) {
-        return res.status(401).json({ error: 'Password Admin salah. Gunakan password: admin atau 123456' });
+      if (cleanPwd && cleanPwd !== 'admin123' && cleanPwd !== 'admin' && cleanPwd !== '123456' && (user.password && cleanPwd !== user.password)) {
+        return res.status(401).json({ error: 'Password Admin salah. Gunakan password: admin123' });
       }
     } else if (!user && cleanId) {
       const cleanIdLower = cleanId.toLowerCase();

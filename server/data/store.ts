@@ -149,14 +149,15 @@ export class DatabaseStore {
 
     // 3. Users
     this.users = [
-      // Admin Dinas (User: admin, Password: admin)
+      // Admin Dinas (Username: admin123, Password: admin123)
       {
         id: 'u-dinas',
-        username: 'admin',
+        username: 'admin123',
         name: 'Didik Setiawan, S.E',
         email: 'dinas@pendidikan.go.id',
         role: 'ADMIN_DINAS',
         nip: '197405121998031002',
+        password: 'admin123',
         phone: '081234567890',
         status: 'active',
         createdAt: '2026-01-01'
