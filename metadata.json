@@ -1,0 +1,8 @@
+{
+  "name": "Remix SI-SUPERVISI PM: Sistem Supervisi Akademik \u0026 Pembelajaran Mendalam",
+  "description": "Aplikasi Web Supervisi Akademik Guru terintegrasi Implementasi Pembelajaran Mendalam (PM) untuk Dinas Pendidikan, Pengawas, Kepala Sekolah, dan Guru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
