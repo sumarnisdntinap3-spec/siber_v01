@@ -459,7 +459,7 @@ export interface AuditLog {
   timestamp: string;
 }
 
-export type PresetLogoIcon = 'sparkles' | 'graduation-cap' | 'building' | 'shield' | 'book' | 'award';
+export type PresetLogoIcon = 'tut-wuri-handayani' | 'sparkles' | 'graduation-cap' | 'building' | 'shield' | 'book' | 'award';
 export type ThemeColorKey = 'indigo' | 'blue' | 'emerald' | 'purple' | 'amber' | 'rose' | 'teal';
 export type TemplatePresetKey =
   | 'modern-corporate'

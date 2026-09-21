@@ -26,6 +26,14 @@ export const LoginView: React.FC = () => {
 
   const renderPresetLogo = (preset?: PresetLogoIcon) => {
     switch (preset) {
+      case 'tut-wuri-handayani':
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className="w-full h-full object-contain p-1"
+          />
+        );
       case 'sparkles':
         return <Sparkles className="w-7 h-7 text-white" />;
       case 'graduation-cap':
@@ -39,7 +47,13 @@ export const LoginView: React.FC = () => {
       case 'award':
         return <Award className="w-7 h-7 text-white" />;
       default:
-        return <GraduationCap className="w-7 h-7 text-white" />;
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className="w-full h-full object-contain p-1"
+          />
+        );
     }
   };
 
@@ -64,7 +78,7 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const appTitle = appSettings?.appName || 'SIP-SAGU PM';
+  const appTitle = appSettings?.appName || 'SIBER-PM';
   const agencyTitle = appSettings?.agencyName || 'Dinas Pendidikan';
   const footerText = appSettings?.footerText || 'Dinas Pendidikan • Hak Cipta Dilindungi';
   const hasCustomLogo = appSettings?.logoType === 'custom' && !!appSettings?.logoUrl;

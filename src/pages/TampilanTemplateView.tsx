@@ -1049,13 +1049,13 @@ export const TampilanTemplateView: React.FC = () => {
                 {/* Logo & App Name in Sidebar */}
                 <div className="flex items-center gap-2 pb-2.5 border-b border-current/10">
                   <div
-                    className={`w-7 h-7 rounded-lg ${getColorBadge(primaryColor)} text-white flex items-center justify-center font-bold text-xs shadow-xs`}
+                    className={`w-7 h-7 rounded-lg ${getColorBadge(primaryColor)} text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden`}
                   >
-                    {appSettings?.appShortName || 'PM'}
+                    <img src="/tut-wuri-handayani.svg" alt="Logo" className="w-full h-full object-contain p-0.5" />
                   </div>
                   <div className="truncate">
                     <div className="text-xs font-bold leading-tight truncate">
-                      {appSettings?.appName || 'SIP-SAGU PM'}
+                      {appSettings?.appName || 'SIBER-PM'}
                     </div>
                     <div className="text-[9px] opacity-70 truncate">{appSettings?.agencyName || 'Dinas Pendidikan'}</div>
                   </div>
@@ -1149,7 +1149,7 @@ export const TampilanTemplateView: React.FC = () => {
               {/* Simulated Top Navbar */}
               <div className={`h-11 border-b px-4 flex items-center justify-between text-xs shrink-0 ${getPreviewNavbarClass()}`}>
                 <div className="font-semibold text-xs truncate">
-                  Selamat Datang di Portal {appSettings?.appName || 'SIP-SAGU PM'}
+                  Selamat Datang di Portal {appSettings?.appName || 'SIBER-PM'}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-current/10">

@@ -51,15 +51,15 @@ export const PengaturanAplikasiView: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // App Identity & Logo Form State
-  const [appName, setAppName] = useState(appSettings?.appName || 'SIP-SAGU PM');
+  const [appName, setAppName] = useState(appSettings?.appName || 'SIBER-PM');
   const [appShortName, setAppShortName] = useState(appSettings?.appShortName || 'PM');
   const [agencyName, setAgencyName] = useState(appSettings?.agencyName || 'Dinas Pendidikan');
   const [appSubtitle, setAppSubtitle] = useState(appSettings?.appSubtitle || 'Supervisi Akademik & Pembelajaran Mendalam');
   const [tagline, setTagline] = useState(appSettings?.tagline || 'Sistem Informasi Supervisi Akademik & Pembelajaran Mendalam Terintegrasi');
-  const [description, setDescription] = useState(appSettings?.description || 'Platform digital terpadu supervisi akademik, kurikulum merdeka, pemetaan growth mindset, dan 10 aspek pembelajaran mendalam.');
+  const [description, setDescription] = useState(appSettings?.description || 'Platform digital terpadu supervisi akademik, kurikulum merdeka, pemetaan growth mindset, dan 10 aspek pembelajaran mendalam (SIBER-PM).');
   const [logoType, setLogoType] = useState<'preset' | 'custom'>(appSettings?.logoType || 'preset');
-  const [logoPreset, setLogoPreset] = useState<PresetLogoIcon>(appSettings?.logoPreset || 'sparkles');
-  const [logoUrl, setLogoUrl] = useState(appSettings?.logoUrl || '');
+  const [logoPreset, setLogoPreset] = useState<PresetLogoIcon>(appSettings?.logoPreset || 'tut-wuri-handayani');
+  const [logoUrl, setLogoUrl] = useState(appSettings?.logoUrl || '/tut-wuri-handayani.svg');
   const [primaryColor, setPrimaryColor] = useState<ThemeColorKey>(appSettings?.primaryColor || 'indigo');
   const [footerText, setFooterText] = useState(appSettings?.footerText || 'Dinas Pendidikan • Sistem Informasi Pengawasan dan Supervisi Akademik');
   const [contactEmail, setContactEmail] = useState(appSettings?.contactEmail || 'dinas@pendidikan.go.id');
@@ -83,15 +83,15 @@ export const PengaturanAplikasiView: React.FC = () => {
 
   useEffect(() => {
     if (appSettings) {
-      setAppName(appSettings.appName || 'SIP-SAGU PM');
+      setAppName(appSettings.appName || 'SIBER-PM');
       setAppShortName(appSettings.appShortName || 'PM');
       setAgencyName(appSettings.agencyName || 'Dinas Pendidikan');
       setAppSubtitle(appSettings.appSubtitle || 'Supervisi Akademik & Pembelajaran Mendalam');
       setTagline(appSettings.tagline || 'Sistem Informasi Supervisi Akademik & Pembelajaran Mendalam Terintegrasi');
       setDescription(appSettings.description || '');
       setLogoType(appSettings.logoType || 'preset');
-      setLogoPreset(appSettings.logoPreset || 'sparkles');
-      setLogoUrl(appSettings.logoUrl || '');
+      setLogoPreset(appSettings.logoPreset || 'tut-wuri-handayani');
+      setLogoUrl(appSettings.logoUrl || '/tut-wuri-handayani.svg');
       setPrimaryColor(appSettings.primaryColor || 'indigo');
       setFooterText(appSettings.footerText || '');
       setContactEmail(appSettings.contactEmail || '');
@@ -234,15 +234,15 @@ export const PengaturanAplikasiView: React.FC = () => {
     setIsSaving(true);
     try {
       const defaultSettings: Partial<AppSettings> = {
-        appName: 'SIP-SAGU PM',
+        appName: 'SIBER-PM',
         appShortName: 'PM',
         agencyName: 'Dinas Pendidikan',
         appSubtitle: 'Supervisi Akademik & Pembelajaran Mendalam',
         tagline: 'Sistem Informasi Supervisi Akademik & Pembelajaran Mendalam Terintegrasi',
-        description: 'Platform digital terpadu supervisi akademik, kurikulum merdeka, pemetaan growth mindset, dan 10 aspek pembelajaran mendalam.',
+        description: 'Platform digital terpadu supervisi akademik, kurikulum merdeka, pemetaan growth mindset, dan 10 aspek pembelajaran mendalam (SIBER-PM).',
         logoType: 'preset',
-        logoPreset: 'sparkles',
-        logoUrl: '',
+        logoPreset: 'tut-wuri-handayani',
+        logoUrl: '/tut-wuri-handayani.svg',
         primaryColor: 'indigo',
         footerText: 'Dinas Pendidikan • Sistem Informasi Pengawasan dan Supervisi Akademik',
         contactEmail: 'dinas@pendidikan.go.id',
@@ -261,6 +261,14 @@ export const PengaturanAplikasiView: React.FC = () => {
   // Preset Logo Icons map
   const renderPresetIcon = (preset: PresetLogoIcon, className = 'w-5 h-5 text-white') => {
     switch (preset) {
+      case 'tut-wuri-handayani':
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className={`${className} object-contain p-0.5`}
+          />
+        );
       case 'sparkles':
         return <Sparkles className={className} />;
       case 'graduation-cap':
@@ -274,7 +282,13 @@ export const PengaturanAplikasiView: React.FC = () => {
       case 'award':
         return <Award className={className} />;
       default:
-        return <Sparkles className={className} />;
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className={`${className} object-contain p-0.5`}
+          />
+        );
     }
   };
 
@@ -678,7 +692,7 @@ export const PengaturanAplikasiView: React.FC = () => {
                   type="text"
                   value={appName}
                   onChange={(e) => setAppName(e.target.value)}
-                  placeholder="Contoh: SIP-SAGU PM atau SIM-SUPERVISI"
+                  placeholder="Contoh: SIBER-PM atau SIM-SUPERVISI"
                   className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden font-semibold"
                   required
                 />
@@ -936,11 +950,12 @@ export const PengaturanAplikasiView: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-800">
                   Pilih Preset Ikon Lambang
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
                   {(
                     [
+                      { id: 'tut-wuri-handayani', label: 'Tut Wuri Handayani', icon: 'tut-wuri-handayani' },
                       { id: 'sparkles', label: 'Sparkles (PM)', icon: 'sparkles' },
-                      { id: 'graduation-cap', label: 'Topi Toga (Akademik)', icon: 'graduation-cap' },
+                      { id: 'graduation-cap', label: 'Topi Toga', icon: 'graduation-cap' },
                       { id: 'building', label: 'Satuan Pendidikan', icon: 'building' },
                       { id: 'shield', label: 'Perisai Pengawasan', icon: 'shield' },
                       { id: 'book', label: 'Buku / Modul', icon: 'book' },

@@ -82,6 +82,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onToggleSidebar, o
 
   const renderPresetLogo = (preset?: PresetLogoIcon) => {
     switch (preset) {
+      case 'tut-wuri-handayani':
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className="w-full h-full object-contain p-0.5"
+          />
+        );
       case 'sparkles':
         return <Sparkles className="w-4 h-4 text-white" />;
       case 'graduation-cap':
@@ -95,7 +103,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onToggleSidebar, o
       case 'award':
         return <Award className="w-4 h-4 text-white" />;
       default:
-        return <Sparkles className="w-4 h-4 text-white" />;
+        return (
+          <img
+            src="/tut-wuri-handayani.svg"
+            alt="Tut Wuri Handayani"
+            className="w-full h-full object-contain p-0.5"
+          />
+        );
     }
   };
 
@@ -141,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onToggleSidebar, o
     }
   };
 
-  const appTitle = appSettings?.appName || 'SIP-SAGU PM';
+  const appTitle = appSettings?.appName || 'SIBER-PM';
   const appShort = appSettings?.appShortName || 'PM';
   const agencyTitle = appSettings?.agencyName || 'Dinas Pendidikan';
   const appSub = appSettings?.appSubtitle || 'Supervisi Akademik & Pembelajaran Mendalam';
