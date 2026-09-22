@@ -26,25 +26,56 @@ import {
 const BASE_URL = '/api';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    if (!res.ok) {
-      throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-    }
-    const text = await res.text();
+  const maxRetries = 2;
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
     try {
-      return JSON.parse(text) as T;
-    } catch {
-      return [] as unknown as T;
+      const res = await fetch(url, options);
+      const contentType = res.headers.get('content-type') || '';
+
+      if (!contentType.includes('application/json')) {
+        if (!res.ok) {
+          throw new Error(`Permintaan gagal (${res.status}: ${res.statusText})`);
+        }
+        const text = await res.text();
+        try {
+          return JSON.parse(text) as T;
+        } catch {
+          return [] as unknown as T;
+        }
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `Permintaan gagal (${res.status})`);
+      }
+      return data;
+    } catch (err: any) {
+      attempt++;
+      const isNetworkError =
+        err?.name === 'TypeError' ||
+        err?.message?.includes('NetworkError') ||
+        err?.message?.includes('Failed to fetch') ||
+        err?.message?.includes('network') ||
+        err?.message?.includes('Load failed');
+
+      if (isNetworkError && attempt <= maxRetries) {
+        // Wait briefly before retrying
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+        continue;
+      }
+
+      if (isNetworkError) {
+        throw new Error('Koneksi ke server terputus. Silakan periksa jaringan Anda atau coba sesaat lagi.');
+      }
+      throw err;
     }
   }
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.error || `Permintaan gagal (${res.status})`);
-  }
-  return data;
+
+  throw new Error('Permintaan ke server gagal diproses.');
 }
+
 
 export const api = {
   // Demo Users & Auth

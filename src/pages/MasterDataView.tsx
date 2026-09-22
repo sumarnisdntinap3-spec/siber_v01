@@ -67,6 +67,7 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
 
   // Modals
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
   const [isDeleteSchoolModalOpen, setIsDeleteSchoolModalOpen] = useState(false);
   const [isDeletingSchool, setIsDeletingSchool] = useState(false);
   const [schoolToDelete, setSchoolToDelete] = useState<School | null>(null);
@@ -119,18 +120,18 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
 
   const loadData = async () => {
     try {
-      const [sList, tList, spList, pList, eyList] = await Promise.all([
+      const results = await Promise.allSettled([
         api.getSchools(),
         api.getTeachers(),
         api.getSupervisors(),
         api.getPrincipals(),
         api.getEducationYears()
       ]);
-      setSchools(sList);
-      setTeachers(tList);
-      setSupervisors(spList);
-      setPrincipals(pList);
-      setEducationYears(eyList);
+      if (results[0].status === 'fulfilled' && results[0].value) setSchools(results[0].value);
+      if (results[1].status === 'fulfilled' && results[1].value) setTeachers(results[1].value);
+      if (results[2].status === 'fulfilled' && results[2].value) setSupervisors(results[2].value);
+      if (results[3].status === 'fulfilled' && results[3].value) setPrincipals(results[3].value);
+      if (results[4].status === 'fulfilled' && results[4].value) setEducationYears(results[4].value);
     } catch (err) {
       console.error('Error loading master data:', err);
     }
@@ -143,32 +144,43 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
   // Save School
   const handleSaveSchool = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingSchool) return;
+    setIsSavingSchool(true);
     try {
       if (selectedItem?.id) {
         await api.updateSchool(selectedItem.id, schoolForm);
+        setUploadNotification(`Satuan pendidikan "${schoolForm.name}" berhasil diperbarui.`);
       } else {
         await api.createSchool(schoolForm);
+        setUploadNotification(`Satuan pendidikan "${schoolForm.name}" berhasil ditambahkan.`);
       }
       setIsSchoolModalOpen(false);
-      loadData();
-    } catch (err) {
+      await loadData();
+    } catch (err: any) {
       console.error('Error saving school:', err);
+      setUploadNotification(err?.message || 'Gagal menyimpan data satuan pendidikan.');
+    } finally {
+      setIsSavingSchool(false);
     }
   };
 
   // Delete School
   const handleDeleteSchool = async () => {
-    if (!schoolToDelete?.id) return;
+    if (!schoolToDelete?.id || isDeletingSchool) return;
+    const target = schoolToDelete;
     setIsDeletingSchool(true);
     try {
-      await api.deleteSchool(schoolToDelete.id);
-      setUploadNotification(`Satuan pendidikan "${schoolToDelete.name}" (NPSN: ${schoolToDelete.npsn}) berhasil dihapus.`);
+      // Optimistically remove from state so UI updates immediately
+      setSchools((prev) => prev.filter((s) => s.id !== target.id));
+      await api.deleteSchool(target.id);
+      setUploadNotification(`Satuan pendidikan "${target.name}" (NPSN: ${target.npsn}) berhasil dihapus.`);
       setIsDeleteSchoolModalOpen(false);
       setSchoolToDelete(null);
       await loadData();
     } catch (err: any) {
       console.error('Error deleting school:', err);
-      alert(err.message || 'Gagal menghapus data satuan pendidikan.');
+      await loadData();
+      setUploadNotification(err?.message || 'Gagal menghapus data satuan pendidikan.');
     } finally {
       setIsDeletingSchool(false);
     }
@@ -1001,9 +1013,10 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs"
+                disabled={isSavingSchool}
+                className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs disabled:opacity-50"
               >
-                Simpan Data Sekolah
+                {isSavingSchool ? 'Menyimpan...' : 'Simpan Data Sekolah'}
               </button>
             </div>
           </div>

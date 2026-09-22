@@ -218,6 +218,17 @@ async function startServer() {
   // 3. MASTER DATA: SEKOLAH
   // ==========================================
   app.get('/api/schools', (req: Request, res: Response) => {
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    const uniqueSchools = [];
+    for (const s of db.schools) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        uniqueSchools.push(s);
+      }
+    }
+    db.schools = uniqueSchools;
+
     // calculate teacher counts
     const schoolsWithCounts = db.schools.map((s) => ({
       ...s,
@@ -228,7 +239,8 @@ async function startServer() {
 
   app.get('/api/schools/:id', (req: Request, res: Response) => {
     const { id } = req.params;
-    const school = db.schools.find((s) => s.id === id);
+    const cleanId = (id || '').trim();
+    const school = db.schools.find((s) => s.id === cleanId || s.id === id);
     if (!school) return res.status(404).json({ error: 'Sekolah tidak ditemukan' });
     const teacherCount = db.teachers.filter((t) => t.schoolId === school.id && t.status === 'active').length;
     res.json({ ...school, teacherCount });
@@ -237,10 +249,33 @@ async function startServer() {
   app.post('/api/schools', (req: Request, res: Response) => {
     const { npsn, name, level, address, subDistrict, city, principalName, supervisorId, phone } = req.body;
     const supervisor = db.supervisors.find((sp) => sp.id === supervisorId);
+    const cleanNpsn = (npsn || '').toString().trim();
+
+    // Prevent duplicate school creation if same NPSN is submitted
+    if (cleanNpsn) {
+      const existingIdx = db.schools.findIndex(
+        (s) => (s.npsn || '').toString().trim() === cleanNpsn
+      );
+      if (existingIdx !== -1) {
+        db.schools[existingIdx] = {
+          ...db.schools[existingIdx],
+          name: name || db.schools[existingIdx].name,
+          level: level || db.schools[existingIdx].level,
+          address: address || db.schools[existingIdx].address,
+          subDistrict: subDistrict || db.schools[existingIdx].subDistrict,
+          city: city || db.schools[existingIdx].city,
+          principalName: principalName || db.schools[existingIdx].principalName,
+          supervisorId: supervisorId || db.schools[existingIdx].supervisorId,
+          supervisorName: supervisor?.name || db.schools[existingIdx].supervisorName,
+          phone: phone !== undefined ? phone : db.schools[existingIdx].phone
+        };
+        return res.status(200).json(db.schools[existingIdx]);
+      }
+    }
 
     const newSchool = {
       id: `sch-${Date.now()}`,
-      npsn,
+      npsn: cleanNpsn || npsn,
       name,
       level: level || 'SD',
       address,
@@ -274,7 +309,8 @@ async function startServer() {
 
   app.put('/api/schools/:id', (req: Request, res: Response) => {
     const { id } = req.params;
-    const index = db.schools.findIndex((s) => s.id === id);
+    const cleanId = (id || '').trim();
+    const index = db.schools.findIndex((s) => s.id === cleanId || s.id === id);
     if (index === -1) return res.status(404).json({ error: 'Sekolah tidak ditemukan' });
 
     const supervisor = req.body.supervisorId ? db.supervisors.find((sp) => sp.id === req.body.supervisorId) : null;
@@ -298,20 +334,38 @@ async function startServer() {
 
   app.delete('/api/schools/:id', (req: Request, res: Response) => {
     const { id } = req.params;
-    const index = db.schools.findIndex((s) => s.id === id);
+    const cleanId = (id || '').toString().trim();
+    const index = db.schools.findIndex(
+      (s) =>
+        s.id === cleanId ||
+        s.id === id ||
+        (s.npsn && s.npsn.toString().trim() === cleanId) ||
+        s.id.toLowerCase() === cleanId.toLowerCase()
+    );
+
+    // If school was already removed (or multiple clicks triggered), return idempotent success
     if (index === -1) {
-      return res.status(404).json({ error: 'Satuan pendidikan tidak ditemukan' });
+      return res.json({
+        success: true,
+        message: 'Satuan pendidikan sudah tidak ada atau telah berhasil dihapus.',
+        id: cleanId,
+        alreadyDeleted: true
+      });
     }
 
     const removedSchool = db.schools[index];
 
     // Clean up references in supervisors
     db.supervisors.forEach((sup) => {
-      if (sup.assignedSchoolIds && sup.assignedSchoolIds.includes(id)) {
-        sup.assignedSchoolIds = sup.assignedSchoolIds.filter((sid) => sid !== id);
+      if (sup.assignedSchoolIds) {
+        sup.assignedSchoolIds = sup.assignedSchoolIds.filter(
+          (sid) => sid !== removedSchool.id && sid !== cleanId && sid !== id
+        );
       }
-      if (sup.assignedSchoolNames && sup.assignedSchoolNames.includes(removedSchool.name)) {
-        sup.assignedSchoolNames = sup.assignedSchoolNames.filter((sname) => sname !== removedSchool.name);
+      if (sup.assignedSchoolNames) {
+        sup.assignedSchoolNames = sup.assignedSchoolNames.filter(
+          (sname) => sname !== removedSchool.name
+        );
       }
     });
 
@@ -330,7 +384,7 @@ async function startServer() {
     res.json({
       success: true,
       message: `Satuan pendidikan ${removedSchool.name} berhasil dihapus.`,
-      id
+      id: removedSchool.id
     });
   });
 
