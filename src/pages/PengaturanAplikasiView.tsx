@@ -24,10 +24,22 @@ import {
   ExternalLink,
   Layers,
   Lock,
-  FileCheck
+  FileCheck,
+  Database,
+  Copy,
+  RefreshCw,
+  Server
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AppSettings, PresetLogoIcon, ThemeColorKey, User } from '../types';
+import {
+  checkSupabaseHealth,
+  SUPABASE_PROJECT_NAME,
+  SUPABASE_PROJECT_ID,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SupabaseHealthResult
+} from '../lib/supabase';
 
 export const PengaturanAplikasiView: React.FC = () => {
   const {
@@ -38,7 +50,10 @@ export const PengaturanAplikasiView: React.FC = () => {
     refreshGlobalData
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'identity' | 'logo' | 'preview'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'identity' | 'logo' | 'preview' | 'database'>('profile');
+  const [supabaseHealth, setSupabaseHealth] = useState<SupabaseHealthResult | null>(null);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
 
   // Admin Profile Form State
   const [adminName, setAdminName] = useState(currentUser?.name || '');
@@ -445,6 +460,27 @@ export const PengaturanAplikasiView: React.FC = () => {
           >
             <Eye className="w-4 h-4" />
             <span>4. Pratinjau Tampilan (Live Preview)</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('database');
+              if (!supabaseHealth && !isTestingSupabase) {
+                setIsTestingSupabase(true);
+                checkSupabaseHealth().then((res) => {
+                  setSupabaseHealth(res);
+                  setIsTestingSupabase(false);
+                });
+              }
+            }}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${
+              activeTab === 'database'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Database className="w-4 h-4 text-emerald-500" />
+            <span>5. Database Supabase</span>
           </button>
         </div>
       </div>
@@ -1136,6 +1172,193 @@ export const PengaturanAplikasiView: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* TAB 5: DATABASE SUPABASE */}
+      {activeTab === 'database' && (
+        <div className="space-y-6">
+          {/* Card Status & Kredensial Supabase */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Database Supabase (PostgreSQL)
+                    <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Terkoneksi
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Konfigurasi integrasi backend database Supabase untuk aplikasi SIBER-PM
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isTestingSupabase}
+                  onClick={async () => {
+                    setIsTestingSupabase(true);
+                    try {
+                      const res = await checkSupabaseHealth();
+                      setSupabaseHealth(res);
+                      showToast(res.connected ? 'success' : 'error', res.message);
+                    } finally {
+                      setIsTestingSupabase(false);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupabase ? 'animate-spin' : ''}`} />
+                  <span>{isTestingSupabase ? 'Memeriksa...' : 'Uji Koneksi'}</span>
+                </button>
+
+                <a
+                  href={`https://supabase.com/dashboard/project/${SUPABASE_PROJECT_ID}/sql/new`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Supabase Dashboard</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Nama Project</span>
+                <p className="text-sm font-bold text-slate-800">{SUPABASE_PROJECT_NAME}</p>
+                <span className="text-[10px] text-slate-400">Project Backend Utama</span>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Project ID</span>
+                <p className="text-sm font-mono font-bold text-slate-800">{SUPABASE_PROJECT_ID}</p>
+                <span className="text-[10px] text-slate-400">Identifier Unik Supabase</span>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Status Koneksi API</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs font-semibold text-emerald-700">API Gateway Terhubung</p>
+                </div>
+                <span className="text-[10px] text-slate-400">Endpoint REST & Auth Valid</span>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Status Tabel DB</span>
+                <p className="text-xs font-semibold text-slate-800">
+                  {supabaseHealth ? (
+                    supabaseHealth.hasTables ? (
+                      <span className="text-emerald-700 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Siap Digunakan
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Perlu Migrasi SQL
+                      </span>
+                    )
+                  ) : (
+                    'Klik "Uji Koneksi"'
+                  )}
+                </p>
+                <span className="text-[10px] text-slate-400">PostgreSQL Schema Cache</span>
+              </div>
+            </div>
+
+            {/* Health Info Banner */}
+            {supabaseHealth && (
+              <div className="mx-6 mb-6 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                <p className="font-semibold text-slate-800">{supabaseHealth.message}</p>
+                {supabaseHealth.missingTables && supabaseHealth.missingTables.length > 0 && (
+                  <p className="text-slate-600 mt-1 text-[11px]">
+                    Tabel yang belum terdeteksi di Supabase: <strong className="text-amber-800">{supabaseHealth.missingTables.join(', ')}</strong>.
+                    Jalankan query migrasi di bawah pada Supabase SQL Editor agar seluruh tabel terbuat secara otomatis.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Panduan Migrasi Schema & Copy SQL */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Server className="w-4 h-4 text-indigo-600" />
+                  Script Migrasi Database (supabase-schema.sql)
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Terapkan tabel PostgreSQL, Row Level Security (RLS), dan data awal ke project Supabase Anda dalam 3 langkah mudah.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetch('/supabase-schema.sql')
+                    .then((res) => res.text())
+                    .then((sql) => {
+                      navigator.clipboard.writeText(sql);
+                      setCopiedSql(true);
+                      showToast('success', 'Script SQL berhasil disalin ke clipboard!');
+                      setTimeout(() => setCopiedSql(false), 3000);
+                    })
+                    .catch(() => {
+                      showToast('error', 'Gagal menyalin file SQL.');
+                    });
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors shrink-0"
+              >
+                {copiedSql ? <CheckCircle2 className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedSql ? 'Tersalin!' : 'Salin Script SQL Migrasi'}</span>
+              </button>
+            </div>
+
+            {/* 3 Step Instruction */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1">
+                <span className="font-bold text-indigo-600">Langkah 1:</span>
+                <p className="font-semibold text-slate-800">Buka SQL Editor di Supabase</p>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Buka dashboard Supabase project <strong className="text-slate-700">{SUPABASE_PROJECT_NAME}</strong>, lalu klik menu <strong>SQL Editor</strong> di bilah samping.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1">
+                <span className="font-bold text-indigo-600">Langkah 2:</span>
+                <p className="font-semibold text-slate-800">Tempelkan Script SQL</p>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Klik tombol <strong>Salin Script SQL Migrasi</strong> di atas, buat query baru (<em>New query</em>), lalu tempel (<em>Paste</em>) seluruh kode SQL.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1">
+                <span className="font-bold text-indigo-600">Langkah 3:</span>
+                <p className="font-semibold text-slate-800">Klik "Run"</p>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Tekan tombol hijau <strong>Run</strong>. Semua tabel (schools, teachers, supervisors, dsb.) beserta kebijakan RLS akan langsung terbuat!
+                </p>
+              </div>
+            </div>
+
+            {/* URL info */}
+            <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
+              <p className="font-bold text-emerald-900">Kredensial Aktif pada Aplikasi:</p>
+              <p className="text-[11px] font-mono text-emerald-800 break-all">
+                URL: {SUPABASE_URL}
+              </p>
+              <p className="text-[11px] font-mono text-emerald-800 break-all">
+                Anon Key: {SUPABASE_ANON_KEY.slice(0, 45)}...
+              </p>
             </div>
           </div>
         </div>

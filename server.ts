@@ -5,6 +5,13 @@ import { createServer as createViteServer } from 'vite';
 import { db } from './server/data/store.js';
 import { User } from './src/types/index.js';
 import * as XLSX from 'xlsx';
+import {
+  syncSchoolToSupabase,
+  deleteSchoolFromSupabase,
+  checkSupabaseTables,
+  SUPABASE_PROJECT_ID,
+  SUPABASE_PROJECT_NAME
+} from './server/supabase.js';
 
 async function startServer() {
   const app = express();
@@ -14,10 +21,27 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
   // ==========================================
-  // 0. HEALTH CHECK (CLOUD RUN / INGRESS)
+  // 0. HEALTH CHECK & SUPABASE STATUS
   // ==========================================
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', service: 'si-supervisi-pm', timestamp: new Date().toISOString() });
+  });
+
+  app.get('/api/supabase/status', async (req: Request, res: Response) => {
+    try {
+      const isReady = await checkSupabaseTables();
+      res.json({
+        configured: true,
+        projectName: SUPABASE_PROJECT_NAME,
+        projectId: SUPABASE_PROJECT_ID,
+        tablesReady: isReady,
+        message: isReady
+          ? 'Koneksi ke Supabase PostgreSQL aktif dan tabel operasional.'
+          : 'Terhubung ke Supabase, namun tabel belum dibuat. Silakan jalankan supabase-schema.sql di Supabase SQL Editor.'
+      });
+    } catch (err: any) {
+      res.status(500).json({ configured: false, error: err.message });
+    }
   });
 
   // ==========================================
@@ -304,6 +328,9 @@ async function startServer() {
       req.ip || '127.0.0.1'
     );
 
+    // Sync to Supabase in background
+    syncSchoolToSupabase(newSchool).catch((err) => console.warn('Supabase sync error:', err));
+
     res.status(201).json(newSchool);
   });
 
@@ -329,6 +356,9 @@ async function startServer() {
       req.ip || '127.0.0.1'
     );
 
+    // Sync update to Supabase
+    syncSchoolToSupabase(db.schools[index]).catch((err) => console.warn('Supabase sync error:', err));
+
     res.json(db.schools[index]);
   });
 
@@ -345,6 +375,7 @@ async function startServer() {
 
     // If school was already removed (or multiple clicks triggered), return idempotent success
     if (index === -1) {
+      deleteSchoolFromSupabase(cleanId).catch(() => {});
       return res.json({
         success: true,
         message: 'Satuan pendidikan sudah tidak ada atau telah berhasil dihapus.',
@@ -371,6 +402,9 @@ async function startServer() {
 
     // Remove from schools list
     db.schools.splice(index, 1);
+
+    // Delete from Supabase
+    deleteSchoolFromSupabase(removedSchool.id).catch((err) => console.warn('Supabase delete error:', err));
 
     db.addAuditLog(
       'u-dinas',
