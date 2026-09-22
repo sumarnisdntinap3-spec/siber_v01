@@ -11,17 +11,13 @@ import {
   LogIn,
   AlertCircle,
   Award,
-  User as UserIcon,
-  CheckCircle2,
-  HelpCircle,
-  Briefcase,
-  Users
+  User as UserIcon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { PresetLogoIcon, ThemeColorKey, UserRole } from '../types';
+import { PresetLogoIcon, ThemeColorKey } from '../types';
 
 export const LoginView: React.FC = () => {
-  const { login, appSettings, demoUsers } = useAuth();
+  const { login, appSettings } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,27 +83,14 @@ export const LoginView: React.FC = () => {
   const footerText = appSettings?.footerText || 'Dinas Pendidikan • Hak Cipta Dilindungi';
   const hasCustomLogo = appSettings?.logoType === 'custom' && !!appSettings?.logoUrl;
 
-  const handleQuickLogin = async (targetId: string, targetPwd?: string) => {
-    setIdentifier(targetId);
-    if (targetPwd) setPassword(targetPwd);
-    setErrorMessage(null);
-    setIsLoading(true);
-    try {
-      const success = await login(targetId, targetPwd || '123456');
-      if (!success) {
-        setErrorMessage('Gagal masuk dengan akun yang dipilih.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Gagal masuk. Periksa kembali akun Anda.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
       setErrorMessage('Silakan masukkan User, NIP, atau Email Anda.');
+      return;
+    }
+    if (!password.trim()) {
+      setErrorMessage('Silakan masukkan Password Anda.');
       return;
     }
 
@@ -115,8 +98,7 @@ export const LoginView: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const pwdToSend = password.trim() || '123456';
-      const success = await login(identifier.trim(), pwdToSend);
+      const success = await login(identifier.trim(), password.trim());
       if (!success) {
         setErrorMessage('User atau Password salah. Silakan periksa kembali.');
       }
@@ -127,12 +109,6 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  // Quick account options
-  const guruUser = demoUsers.find((u) => u.email === 'sumarni.sdntinap3@gmail.com') || demoUsers.find((u) => u.role === 'GURU');
-  const ksUser = demoUsers.find((u) => u.role === 'KEPALA_SEKOLAH');
-  const pengawasUser = demoUsers.find((u) => u.role === 'PENGAWAS');
-  const adminUser = demoUsers.find((u) => u.role === 'ADMIN_DINAS');
-
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4 py-8 relative selection:bg-indigo-500 selection:text-white">
       {/* Subtle Background Glow */}
@@ -142,7 +118,7 @@ export const LoginView: React.FC = () => {
       </div>
 
       {/* Main Container Card */}
-      <div className="w-full max-w-lg relative z-10">
+      <div className="w-full max-w-md relative z-10">
         {/* Header Branding */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center p-1 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-lg mb-3.5">
@@ -178,7 +154,7 @@ export const LoginView: React.FC = () => {
               Masuk ke Sistem Supervisi
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Gunakan NIP, Email, atau pilih akun cepat di bawah ini
+              Gunakan NIP, Username, atau Email resmi Anda untuk melanjutkan
             </p>
           </div>
 
@@ -190,94 +166,8 @@ export const LoginView: React.FC = () => {
             </div>
           )}
 
-          {/* Quick Login Options */}
-          <div className="mb-5">
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Pilih Akun Masuk Cepat (1-Klik)
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Ibu Sumarni (Guru) */}
-              <button
-                type="button"
-                onClick={() => handleQuickLogin(guruUser?.email || 'sumarni.sdntinap3@gmail.com', guruUser?.nip || '123456')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/80 hover:border-indigo-500/80 hover:bg-slate-900 transition-all text-left flex items-center gap-2.5 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
-                  G
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300">
-                    {guruUser?.name || 'Sumarni, S.Pd.SD.'}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">Guru • SDN Tinap 3</p>
-                </div>
-              </button>
-
-              {/* Kepala Sekolah */}
-              <button
-                type="button"
-                onClick={() => handleQuickLogin(ksUser?.nip || '197203121996032001', ksUser?.nip || '123456')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/80 hover:border-indigo-500/80 hover:bg-slate-900 transition-all text-left flex items-center gap-2.5 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
-                  KS
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300">
-                    {ksUser?.name || 'Hj. Sri Wahyuni, M.Pd.'}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">Kepala Sekolah</p>
-                </div>
-              </button>
-
-              {/* Pengawas Sekolah */}
-              <button
-                type="button"
-                onClick={() => handleQuickLogin(pengawasUser?.nip || '196805121993031004', pengawasUser?.nip || '123456')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/80 hover:border-indigo-500/80 hover:bg-slate-900 transition-all text-left flex items-center gap-2.5 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
-                  PS
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300">
-                    {pengawasUser?.name || 'Drs. H. Bambang Sutrisno'}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">Pengawas Sekolah</p>
-                </div>
-              </button>
-
-              {/* Admin Dinas */}
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin123', 'admin123')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/80 hover:border-indigo-500/80 hover:bg-slate-900 transition-all text-left flex items-center gap-2.5 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
-                  AD
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300">
-                    {adminUser?.name || 'Didik Setiawan, S.E'}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">Admin Dinas • admin123</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="relative flex py-2 items-center">
-            <div className="grow border-t border-slate-700/60"></div>
-            <span className="shrink mx-3 text-[11px] text-slate-400 uppercase tracking-wider">Atau Masuk Manual</span>
-            <div className="grow border-t border-slate-700/60"></div>
-          </div>
-
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 mt-3">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* User Input */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -293,7 +183,7 @@ export const LoginView: React.FC = () => {
                   autoComplete="username"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="NIP / Email (contoh: sumarni.sdntinap3@gmail.com)"
+                  placeholder="Masukkan NIP, Username, atau Email"
                   className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-900/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   required
                 />
@@ -302,12 +192,9 @@ export const LoginView: React.FC = () => {
 
             {/* Password Input */}
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Password
-                </label>
-                <span className="text-[10px] text-slate-400">Default: NIP atau 123456</span>
-              </div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
@@ -318,8 +205,9 @@ export const LoginView: React.FC = () => {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan password (NIP atau 123456)"
+                  placeholder="Masukkan password"
                   className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-900/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  required
                 />
                 <button
                   type="button"
@@ -349,20 +237,6 @@ export const LoginView: React.FC = () => {
               </button>
             </div>
           </form>
-
-          {/* Quick Help Box */}
-          <div className="mt-4 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50 flex items-start gap-2.5 text-[11px] text-slate-400 leading-relaxed">
-            <HelpCircle className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-slate-300">Bantuan Akses Masuk:</p>
-              <p className="mt-0.5">
-                • <strong>Admin Dinas</strong>: Username <code className="text-indigo-300 bg-slate-800 px-1 py-0.5 rounded">admin123</code> & Password <code className="text-indigo-300 bg-slate-800 px-1 py-0.5 rounded">admin123</code>
-              </p>
-              <p className="mt-0.5">
-                • <strong>Guru, KS, & Pengawas</strong>: Gunakan NIP (18 digit), Email, atau Username dengan password NIP / <strong className="text-white">123456</strong>, atau gunakan tombol 1-klik di atas.
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
@@ -373,4 +247,3 @@ export const LoginView: React.FC = () => {
     </div>
   );
 };
-

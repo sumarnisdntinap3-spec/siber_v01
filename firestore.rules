@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'sumarni.sdntinap3@gmail.com' ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN_DINAS'
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Schools Collection
+    match /schools/{schoolId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Supervisions Collection
+    match /supervisions/{supervisionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Lesson Plans Collection
+    match /lessonPlans/{lessonPlanId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (resource.data.teacherId == request.auth.uid || isAdmin());
+    }
+
+    // Audit Logs Collection
+    match /auditLogs/{logId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // Connection test document
+    match /test/connection {
+      allow read, write: if true;
+    }
+  }
+}

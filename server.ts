@@ -44,7 +44,7 @@ async function startServer() {
     if (!user && (cleanId.toLowerCase() === 'admin123' || cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas')) {
       user = db.users.find((u) => u.role === 'ADMIN_DINAS') || db.users[0];
       if (cleanPwd && cleanPwd !== 'admin123' && cleanPwd !== 'admin' && cleanPwd !== '123456' && (user.password && cleanPwd !== user.password)) {
-        return res.status(401).json({ error: 'Password Admin salah. Gunakan password: admin123' });
+        return res.status(401).json({ error: 'Password Admin salah. Silakan periksa kembali kata sandi Anda.' });
       }
     } else if (!user && cleanId) {
       const cleanIdLower = cleanId.toLowerCase();

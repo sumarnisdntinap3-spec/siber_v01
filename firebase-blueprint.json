@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account and profile information in SIBER-PM",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "Full name with titles" },
+        "username": { "type": "string", "description": "Username for login" },
+        "nip": { "type": "string", "description": "18-digit employee identification number" },
+        "email": { "type": "string", "description": "Official email address" },
+        "role": { "type": "string", "enum": ["ADMIN_DINAS", "PENGAWAS", "KEPALA_SEKOLAH", "GURU"] },
+        "schoolId": { "type": "string", "description": "ID of assigned school" },
+        "schoolName": { "type": "string", "description": "Name of assigned school" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "description": "Creation timestamp ISO string" }
+      },
+      "required": ["id", "name", "role", "email"]
+    },
+    "School": {
+      "title": "School",
+      "description": "School institution information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique school ID" },
+        "npsn": { "type": "string", "description": "National School Number" },
+        "name": { "type": "string", "description": "School name" },
+        "address": { "type": "string", "description": "Full address" },
+        "city": { "type": "string", "description": "City or regency" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "accreditation": { "type": "string", "description": "School accreditation level" },
+        "principalName": { "type": "string", "description": "Name of principal" },
+        "supervisorName": { "type": "string", "description": "Name of supervisor" }
+      },
+      "required": ["id", "npsn", "name"]
+    },
+    "SupervisionSchedule": {
+      "title": "SupervisionSchedule",
+      "description": "Supervision schedule and assessment workflow",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique supervision ID" },
+        "teacherId": { "type": "string", "description": "Target teacher user ID" },
+        "teacherName": { "type": "string", "description": "Target teacher name" },
+        "schoolId": { "type": "string", "description": "School ID" },
+        "schoolName": { "type": "string", "description": "School name" },
+        "subject": { "type": "string", "description": "Subject being supervised" },
+        "date": { "type": "string", "description": "Scheduled supervision date" },
+        "time": { "type": "string", "description": "Scheduled time" },
+        "status": { "type": "string", "enum": ["DIAJUKAN", "DISETUJUI", "DITOLAK", "SELESAI"] },
+        "supervisorId": { "type": "string", "description": "Supervisor user ID" },
+        "supervisorName": { "type": "string", "description": "Supervisor name" },
+        "score": { "type": "number", "description": "Evaluation score" },
+        "notes": { "type": "string", "description": "Supervision notes or feedback" }
+      },
+      "required": ["id", "teacherId", "schoolId", "status"]
+    },
+    "LessonPlan": {
+      "title": "LessonPlan",
+      "description": "Modul Ajar / Lesson Plan uploaded by teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique lesson plan ID" },
+        "teacherId": { "type": "string", "description": "Owner teacher user ID" },
+        "teacherName": { "type": "string", "description": "Teacher name" },
+        "schoolId": { "type": "string", "description": "School ID" },
+        "title": { "type": "string", "description": "Title of lesson plan" },
+        "subject": { "type": "string", "description": "Subject name" },
+        "grade": { "type": "string", "description": "Grade / Class" },
+        "status": { "type": "string", "enum": ["DRAFT", "MENUNGGU_VERIFIKASI", "DISETUJUI", "PERLU_REVISI"] },
+        "fileUrl": { "type": "string", "description": "URL to attached file or document" }
+      },
+      "required": ["id", "teacherId", "title", "subject", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System activity audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique log ID" },
+        "userId": { "type": "string", "description": "User ID who performed the action" },
+        "userName": { "type": "string", "description": "User name" },
+        "userRole": { "type": "string", "description": "User role" },
+        "activity": { "type": "string", "description": "Activity title" },
+        "details": { "type": "string", "description": "Detailed log description" },
+        "timestamp": { "type": "string", "description": "Timestamp string" }
+      },
+      "required": ["id", "userId", "activity", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and credentials"
+    },
+    "/schools/{schoolId}": {
+      "schema": "School",
+      "description": "Educational institutions registered in system"
+    },
+    "/supervisions/{supervisionId}": {
+      "schema": "SupervisionSchedule",
+      "description": "Supervision plans, execution records, and evaluations"
+    },
+    "/lessonPlans/{lessonPlanId}": {
+      "schema": "LessonPlan",
+      "description": "Uploaded teaching modules and verification records"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security and activity audit trails"
+    }
+  }
+}
