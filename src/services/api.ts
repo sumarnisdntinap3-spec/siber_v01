@@ -606,5 +606,34 @@ export const api = {
   // Reset demo seed
   async resetDemoData() {
     return request<any>(`${BASE_URL}/seed/reset`, { method: 'POST' });
+  },
+
+  // Supabase Status & Manual Sync
+  async getSupabaseStatus(): Promise<{
+    configured: boolean;
+    projectName?: string;
+    projectId?: string;
+    tablesReady?: boolean;
+    counts?: {
+      schools: number;
+      teachers: number;
+      supervisors: number;
+      users: number;
+    };
+    message?: string;
+    error?: string;
+  }> {
+    return request(`${BASE_URL}/supabase/status`);
+  },
+
+  async syncAllToSupabase(): Promise<{
+    success: boolean;
+    message: string;
+    synced?: { schools: number; supervisors: number; teachers: number };
+    currentCounts?: { schools: number; teachers: number; supervisors: number; users: number };
+  }> {
+    return request(`${BASE_URL}/supabase/sync-all`, {
+      method: 'POST'
+    });
   }
 };

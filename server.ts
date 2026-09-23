@@ -8,7 +8,13 @@ import * as XLSX from 'xlsx';
 import {
   syncSchoolToSupabase,
   deleteSchoolFromSupabase,
-  checkSupabaseTables,
+  syncTeacherToSupabase,
+  deleteTeacherFromSupabase,
+  syncSupervisorToSupabase,
+  deleteSupervisorFromSupabase,
+  syncUserToSupabase,
+  getSupabaseMasterDataCounts,
+  isTableReady,
   SUPABASE_PROJECT_ID,
   SUPABASE_PROJECT_NAME
 } from './server/supabase.js';
@@ -29,18 +35,59 @@ async function startServer() {
 
   app.get('/api/supabase/status', async (req: Request, res: Response) => {
     try {
-      const isReady = await checkSupabaseTables();
+      const isReady = await isTableReady('schools');
+      const countsInfo = await getSupabaseMasterDataCounts();
       res.json({
         configured: true,
         projectName: SUPABASE_PROJECT_NAME,
         projectId: SUPABASE_PROJECT_ID,
         tablesReady: isReady,
+        counts: countsInfo.counts,
         message: isReady
           ? 'Koneksi ke Supabase PostgreSQL aktif dan tabel operasional.'
           : 'Terhubung ke Supabase, namun tabel belum dibuat. Silakan jalankan supabase-schema.sql di Supabase SQL Editor.'
       });
     } catch (err: any) {
       res.status(500).json({ configured: false, error: err.message });
+    }
+  });
+
+  app.post('/api/supabase/sync-all', async (req: Request, res: Response) => {
+    try {
+      let schoolsSynced = 0;
+      let teachersSynced = 0;
+      let supervisorsSynced = 0;
+
+      // 1. Sync all schools
+      for (const sch of db.schools) {
+        const ok = await syncSchoolToSupabase(sch);
+        if (ok) schoolsSynced++;
+      }
+
+      // 2. Sync all supervisors
+      for (const sp of db.supervisors) {
+        const user = db.users.find((u) => u.id === sp.userId);
+        const ok = await syncSupervisorToSupabase(sp, user);
+        if (ok) supervisorsSynced++;
+      }
+
+      // 3. Sync all teachers
+      for (const t of db.teachers) {
+        const user = db.users.find((u) => u.id === t.userId);
+        const ok = await syncTeacherToSupabase(t, user);
+        if (ok) teachersSynced++;
+      }
+
+      const countsInfo = await getSupabaseMasterDataCounts();
+
+      res.json({
+        success: true,
+        message: `Sinkronisasi Supabase selesai: ${schoolsSynced} sekolah, ${supervisorsSynced} pengawas, ${teachersSynced} guru`,
+        synced: { schools: schoolsSynced, supervisors: supervisorsSynced, teachers: teachersSynced },
+        currentCounts: countsInfo.counts
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 
@@ -516,6 +563,11 @@ async function startServer() {
       }
     }
 
+    // Sync all processed schools to Supabase in background
+    for (const sch of processed) {
+      syncSchoolToSupabase(sch).catch((err) => console.warn('Supabase batch school sync error:', err));
+    }
+
     db.addAuditLog(
       'u-dinas',
       'Didik Setiawan, S.E',
@@ -729,6 +781,9 @@ async function startServer() {
     };
     db.teachers.push(newTeacher);
 
+    // Sync new teacher and user account to Supabase
+    syncTeacherToSupabase(newTeacher, newUser).catch((err) => console.warn('Supabase teacher sync error:', err));
+
     db.addAuditLog(
       'u-dinas',
       'Admin Dinas',
@@ -753,6 +808,10 @@ async function startServer() {
       db.users[userIndex].email = db.teachers[index].email;
       db.users[userIndex].nip = db.teachers[index].nip;
     }
+
+    // Sync updated teacher to Supabase
+    const associatedUser = userIndex !== -1 ? db.users[userIndex] : undefined;
+    syncTeacherToSupabase(db.teachers[index], associatedUser).catch((err) => console.warn('Supabase teacher update sync error:', err));
 
     db.addAuditLog(
       'u-dinas',
@@ -782,6 +841,9 @@ async function startServer() {
     }
 
     db.teachers.splice(index, 1);
+
+    // Sync deletion to Supabase
+    deleteTeacherFromSupabase(deleted.id, deleted.userId).catch((err) => console.warn('Supabase teacher delete error:', err));
 
     // Update school teacher count
     if (deleted.schoolId) {
@@ -906,6 +968,12 @@ async function startServer() {
         processed.push(newTeacher);
         addedCount++;
       }
+    }
+
+    // Sync all processed teachers to Supabase in background
+    for (const tch of processed) {
+      const associatedUser = db.users.find((u) => u.id === tch.userId);
+      syncTeacherToSupabase(tch, associatedUser).catch((err) => console.warn('Supabase batch teacher sync error:', err));
     }
 
     db.addAuditLog(
@@ -1322,6 +1390,9 @@ async function startServer() {
       }
     });
 
+    // Sync new supervisor and user account to Supabase
+    syncSupervisorToSupabase(newSupervisor, newUser).catch((err) => console.warn('Supabase supervisor sync error:', err));
+
     db.addAuditLog(
       'u-dinas',
       'Admin Dinas',
@@ -1420,6 +1491,10 @@ async function startServer() {
       });
     }
 
+    // Sync updated supervisor to Supabase
+    const associatedUser = userIndex !== -1 ? db.users[userIndex] : undefined;
+    syncSupervisorToSupabase(db.supervisors[index], associatedUser).catch((err) => console.warn('Supabase supervisor update sync error:', err));
+
     db.addAuditLog(
       'u-dinas',
       'Admin Dinas',
@@ -1448,6 +1523,9 @@ async function startServer() {
     });
 
     db.supervisors.splice(index, 1);
+
+    // Sync deletion to Supabase
+    deleteSupervisorFromSupabase(deleted.id, deleted.userId).catch((err) => console.warn('Supabase supervisor delete error:', err));
 
     db.addAuditLog(
       'u-dinas',

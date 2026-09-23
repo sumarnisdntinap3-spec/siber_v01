@@ -71,7 +71,7 @@ export async function checkSupabaseHealth(): Promise<SupabaseHealthResult> {
 
     for (const table of tablesToCheck) {
       try {
-        const { error } = await supabase.from(table).select('count', { count: 'exact', head: true });
+        const { error } = await supabase.from(table).select('*', { count: 'exact', head: true });
         if (error && (error.code === 'PGRST205' || error.message?.includes('schema cache') || error.message?.includes('does not exist'))) {
           missing.push(table);
         }

@@ -22,50 +22,89 @@ export const supabaseServer: SupabaseClient = createClient(SUPABASE_URL, SUPABAS
   }
 });
 
-let tablesChecked = false;
-let hasSchoolsTable = false;
-
 /**
- * Checks if the schools table exists in Supabase.
+ * Dynamically tests if a table exists in Supabase.
  */
-export async function checkSupabaseTables(): Promise<boolean> {
-  if (tablesChecked) return hasSchoolsTable;
+export async function isTableReady(tableName: string): Promise<boolean> {
   try {
-    const { error } = await supabaseServer.from('schools').select('id', { head: true, count: 'exact' });
-    if (!error) {
-      hasSchoolsTable = true;
-      console.log('✅ Supabase connected: public.schools table is active.');
-    } else {
-      hasSchoolsTable = false;
-      console.log('ℹ️ Supabase connected, but public.schools table not created yet (Run supabase-schema.sql to create tables).');
+    const { error } = await supabaseServer.from(tableName).select('id', { head: true, count: 'exact' });
+    if (!error) return true;
+    if (error.code === 'PGRST205' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+      return false;
     }
-  } catch (err: any) {
-    hasSchoolsTable = false;
-    console.warn('⚠️ Supabase connection check failed:', err.message);
+    return true;
+  } catch {
+    return false;
   }
-  tablesChecked = true;
-  return hasSchoolsTable;
 }
 
 /**
- * Sync school record to Supabase.
+ * Syncs user record to Supabase users table.
  */
-export async function syncSchoolToSupabase(school: any) {
+export async function syncUserToSupabase(user: any): Promise<boolean> {
+  if (!user || !user.id) return false;
   try {
-    const tableReady = await checkSupabaseTables();
-    if (!tableReady) return;
+    const cleanNip = user.nip && user.nip !== '-' ? String(user.nip).trim() : `NIP-${user.id}`;
+    const payload = {
+      id: user.id,
+      nip: cleanNip,
+      name: user.name || 'Pengguna',
+      username: user.username || user.email || user.id,
+      email: user.email || null,
+      role: user.role || 'GURU',
+      password: user.password || null,
+      school_id: user.schoolId || null,
+      school_name: user.schoolName || null,
+      phone: user.phone || null,
+      status: user.status === 'active' || user.status === 'Aktif' ? 'Aktif' : 'Nonaktif',
+      updated_at: new Date().toISOString()
+    };
 
+    const { error } = await supabaseServer.from('users').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn(`⚠️ Supabase syncUser error (${user.name}):`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn(`⚠️ Error syncing user ${user.id} to Supabase:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Delete user from Supabase users table.
+ */
+export async function deleteUserFromSupabase(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const { error } = await supabaseServer.from('users').delete().eq('id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sync school record to Supabase schools table.
+ */
+export async function syncSchoolToSupabase(school: any): Promise<boolean> {
+  if (!school || !school.id) return false;
+  try {
+    const cleanNpsn = school.npsn ? String(school.npsn).trim() : `NPSN-${school.id.replace(/\D/g, '') || Date.now()}`;
     const payload = {
       id: school.id,
-      npsn: school.npsn,
-      name: school.name,
-      level: school.level || 'SD',
+      npsn: cleanNpsn,
+      name: school.name || 'Satuan Pendidikan',
+      level: ['TK', 'SD', 'SMP', 'SMA', 'SMK'].includes(school.level) ? school.level : 'SD',
       address: school.address || '',
-      sub_district: school.subDistrict || school.subdistrict || '',
+      sub_district: school.subDistrict || school.subdistrict || 'Sukomoro',
       city: school.city || 'Kabupaten Magetan',
-      principal_name: school.principalName || '',
-      supervisor_id: school.supervisorId || null,
-      supervisor_name: school.supervisorName || '',
+      principal_name: school.principalName || school.principal_name || '-',
+      supervisor_id: school.supervisorId || school.supervisor_id || null,
+      supervisor_name: school.supervisorName || school.supervisor_name || '-',
+      accreditation: school.accreditation || 'A',
+      teacher_count: Number(school.teacherCount || school.teacher_count || 0),
       status: school.status || 'active',
       phone: school.phone || '',
       updated_at: new Date().toISOString()
@@ -73,54 +112,263 @@ export async function syncSchoolToSupabase(school: any) {
 
     const { error } = await supabaseServer.from('schools').upsert(payload, { onConflict: 'id' });
     if (error) {
-      console.warn('⚠️ Supabase syncSchool error:', error.message);
-    } else {
-      console.log(`✅ Synced school "${school.name}" to Supabase`);
+      console.warn(`⚠️ Supabase syncSchool error (${school.name}):`, error.message);
+      return false;
     }
+    console.log(`✅ Synced school "${school.name}" to Supabase`);
+    return true;
   } catch (err: any) {
-    console.warn('⚠️ Error syncing school to Supabase:', err.message);
+    console.warn(`⚠️ Error syncing school ${school.id} to Supabase:`, err.message);
+    return false;
   }
 }
 
 /**
- * Delete school from Supabase.
+ * Delete school from Supabase schools table.
  */
-export async function deleteSchoolFromSupabase(id: string) {
+export async function deleteSchoolFromSupabase(id: string): Promise<boolean> {
+  if (!id) return false;
   try {
-    const tableReady = await checkSupabaseTables();
-    if (!tableReady) return;
-
     const { error } = await supabaseServer.from('schools').delete().eq('id', id);
     if (error) {
-      console.warn('⚠️ Supabase deleteSchool error:', error.message);
-    } else {
-      console.log(`✅ Deleted school "${id}" from Supabase`);
+      console.warn(`⚠️ Supabase deleteSchool error (${id}):`, error.message);
+      return false;
     }
+    console.log(`✅ Deleted school "${id}" from Supabase`);
+    return true;
   } catch (err: any) {
-    console.warn('⚠️ Error deleting school from Supabase:', err.message);
+    console.warn(`⚠️ Error deleting school ${id} from Supabase:`, err.message);
+    return false;
   }
 }
 
 /**
- * Sync teacher record to Supabase.
+ * Sync teacher record to Supabase teachers table.
  */
-export async function syncTeacherToSupabase(teacher: any) {
+export async function syncTeacherToSupabase(teacher: any, user?: any): Promise<boolean> {
+  if (!teacher || !teacher.id) return false;
   try {
-    const { error } = await supabaseServer.from('teachers').upsert({
-      id: teacher.id,
-      nip: teacher.nip,
-      name: teacher.name,
-      gender: teacher.gender,
-      subject: teacher.subject,
-      school_id: teacher.schoolId,
-      school_name: teacher.schoolName,
-      status: teacher.status || 'active',
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'id' });
-    if (error && error.code !== 'PGRST205') {
-      console.warn('⚠️ Supabase syncTeacher error:', error.message);
+    // 1. If user object is provided, ensure user is synced to 'users' table first
+    if (user) {
+      await syncUserToSupabase(user);
     }
+
+    const cleanNip = teacher.nip && teacher.nip !== '-' ? String(teacher.nip).trim() : null;
+    const gender = teacher.gender === 'P' || teacher.gender === 'Perempuan' ? 'P' : 'L';
+    const teacherType = teacher.teacherType === 'Guru Mapel' ? 'Guru Mapel' : 'Guru Kelas';
+
+    const payload = {
+      id: teacher.id,
+      user_id: teacher.userId || user?.id || null,
+      nip: cleanNip,
+      nik: teacher.nik ? String(teacher.nik) : null,
+      nuptk: teacher.nuptk ? String(teacher.nuptk) : null,
+      name: teacher.name || 'Guru',
+      gender: gender,
+      subject: teacher.subject || 'Guru Kelas',
+      teacher_type: teacherType,
+      class_grade: teacher.classGrade || null,
+      rank_grade: teacher.rankGrade || 'Penata Muda / III/a',
+      position: teacher.position || 'Guru Ahli Pertama',
+      employment_status: teacher.employmentStatus || 'PNS',
+      email: teacher.email || null,
+      phone: teacher.phone || null,
+      school_id: teacher.schoolId || null,
+      school_name: teacher.schoolName || '-',
+      join_year: Number(teacher.joinYear) || new Date().getFullYear(),
+      status: teacher.status === 'active' || teacher.status === 'Aktif' ? 'Aktif' : 'Nonaktif',
+      admin_completion: Number(teacher.adminCompletion || 0),
+      admin_self_completion: Number(teacher.adminSelfCompletion || 0),
+      admin_supervisor_score: teacher.adminSupervisorScore !== undefined ? Number(teacher.adminSupervisorScore) : 0,
+      admin_score: teacher.adminScore !== undefined ? Number(teacher.adminScore) : 0,
+      admin_verified_by_supervisor: Boolean(teacher.adminVerifiedBySupervisor),
+      admin_supervisor_status: teacher.adminSupervisorStatus || 'BELUM_DINILAI',
+      module_status: teacher.moduleStatus || 'BELUM_UPLOAD',
+      mindset_category: teacher.mindsetCategory || 'Pola Pikir Berkembang',
+      supervision_status: teacher.supervisionStatus || 'Belum Supervisi',
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseServer.from('teachers').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      // If foreign key constraint on school_id or user_id failed, try fallback without school_id / user_id
+      if (error.code === '23503') {
+        console.warn(`⚠️ Foreign key constraint on teacher (${teacher.name}), retrying with detached school/user:`, error.message);
+        const detachedPayload = { ...payload, school_id: null, user_id: null };
+        const retryResult = await supabaseServer.from('teachers').upsert(detachedPayload, { onConflict: 'id' });
+        if (!retryResult.error) {
+          console.log(`✅ Synced teacher "${teacher.name}" to Supabase (detached FK fallback)`);
+          return true;
+        }
+      }
+      console.warn(`⚠️ Supabase syncTeacher error (${teacher.name}):`, error.message);
+      return false;
+    }
+    console.log(`✅ Synced teacher "${teacher.name}" to Supabase`);
+    return true;
   } catch (err: any) {
-    // Ignore schema cache errors
+    console.warn(`⚠️ Error syncing teacher ${teacher.id} to Supabase:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Delete teacher from Supabase teachers table.
+ */
+export async function deleteTeacherFromSupabase(teacherId: string, userId?: string): Promise<boolean> {
+  if (!teacherId) return false;
+  try {
+    const { error } = await supabaseServer.from('teachers').delete().eq('id', teacherId);
+    if (error) {
+      console.warn(`⚠️ Supabase deleteTeacher error (${teacherId}):`, error.message);
+      return false;
+    }
+    if (userId) {
+      await deleteUserFromSupabase(userId);
+    }
+    console.log(`✅ Deleted teacher "${teacherId}" from Supabase`);
+    return true;
+  } catch (err: any) {
+    console.warn(`⚠️ Error deleting teacher ${teacherId} from Supabase:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Sync supervisor record to Supabase supervisors table.
+ */
+export async function syncSupervisorToSupabase(supervisor: any, user?: any): Promise<boolean> {
+  if (!supervisor || !supervisor.id) return false;
+  try {
+    // 1. If user object is provided, ensure user is synced to 'users' table first
+    if (user) {
+      await syncUserToSupabase(user);
+    }
+
+    const cleanNip = supervisor.nip ? String(supervisor.nip).trim() : `SP-${supervisor.id}`;
+    const levelArray = Array.isArray(supervisor.levels) && supervisor.levels.length > 0
+      ? supervisor.levels
+      : (supervisor.levels ? [supervisor.levels] : ['SD']);
+
+    const kecamatanArray = Array.isArray(supervisor.wilayahKecamatan)
+      ? supervisor.wilayahKecamatan
+      : (supervisor.wilayahKecamatan ? [supervisor.wilayahKecamatan] : ['Sukomoro']);
+
+    const schoolIds = Array.isArray(supervisor.assignedSchoolIds) ? supervisor.assignedSchoolIds : [];
+    const schoolNames = Array.isArray(supervisor.assignedSchoolNames) ? supervisor.assignedSchoolNames : [];
+
+    const gender = supervisor.gender === 'P' || supervisor.gender === 'Perempuan' ? 'P' : 'L';
+
+    // Format valid date string for sk_date or null
+    let skDateVal: string | null = null;
+    if (supervisor.skDate) {
+      const parsed = new Date(supervisor.skDate);
+      if (!isNaN(parsed.getTime())) {
+        skDateVal = parsed.toISOString().split('T')[0];
+      }
+    }
+
+    const payload = {
+      id: supervisor.id,
+      user_id: supervisor.userId || user?.id || null,
+      nip: cleanNip,
+      nik: supervisor.nik ? String(supervisor.nik) : null,
+      name: supervisor.name || 'Pengawas Sekolah',
+      email: supervisor.email || null,
+      phone: supervisor.phone || null,
+      gender: gender,
+      rank_grade: supervisor.rankGrade || 'Pembina Tingkat I / IV/b',
+      levels: levelArray,
+      level_summary: levelArray.join(', '),
+      assigned_school_ids: schoolIds,
+      assigned_school_names: schoolNames,
+      wilayah_kecamatan: kecamatanArray,
+      kabupaten: supervisor.kabupaten || 'Kabupaten Magetan',
+      sk_number: supervisor.skNumber || null,
+      sk_date: skDateVal,
+      status: supervisor.status === 'active' || supervisor.status === 'Aktif' ? 'Aktif' : 'Nonaktif',
+      notes: supervisor.notes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseServer.from('supervisors').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      // If foreign key constraint on user_id failed, retry with user_id: null
+      if (error.code === '23503') {
+        const retryResult = await supabaseServer.from('supervisors').upsert({ ...payload, user_id: null }, { onConflict: 'id' });
+        if (!retryResult.error) {
+          console.log(`✅ Synced supervisor "${supervisor.name}" to Supabase (detached user_id fallback)`);
+          return true;
+        }
+      }
+      console.warn(`⚠️ Supabase syncSupervisor error (${supervisor.name}):`, error.message);
+      return false;
+    }
+    console.log(`✅ Synced supervisor "${supervisor.name}" to Supabase`);
+    return true;
+  } catch (err: any) {
+    console.warn(`⚠️ Error syncing supervisor ${supervisor.id} to Supabase:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Delete supervisor from Supabase supervisors table.
+ */
+export async function deleteSupervisorFromSupabase(supervisorId: string, userId?: string): Promise<boolean> {
+  if (!supervisorId) return false;
+  try {
+    const { error } = await supabaseServer.from('supervisors').delete().eq('id', supervisorId);
+    if (error) {
+      console.warn(`⚠️ Supabase deleteSupervisor error (${supervisorId}):`, error.message);
+      return false;
+    }
+    if (userId) {
+      await deleteUserFromSupabase(userId);
+    }
+    console.log(`✅ Deleted supervisor "${supervisorId}" from Supabase`);
+    return true;
+  } catch (err: any) {
+    console.warn(`⚠️ Error deleting supervisor ${supervisorId} from Supabase:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Get live record counts from Supabase to verify connection and synchronization.
+ */
+export async function getSupabaseMasterDataCounts(): Promise<{
+  connected: boolean;
+  counts: {
+    schools: number;
+    teachers: number;
+    supervisors: number;
+    users: number;
+  };
+  error?: string;
+}> {
+  try {
+    const [schoolsRes, teachersRes, supervisorsRes, usersRes] = await Promise.all([
+      supabaseServer.from('schools').select('*', { count: 'exact', head: true }),
+      supabaseServer.from('teachers').select('*', { count: 'exact', head: true }),
+      supabaseServer.from('supervisors').select('*', { count: 'exact', head: true }),
+      supabaseServer.from('users').select('*', { count: 'exact', head: true })
+    ]);
+
+    return {
+      connected: !schoolsRes.error && !teachersRes.error,
+      counts: {
+        schools: schoolsRes.count || 0,
+        teachers: teachersRes.count || 0,
+        supervisors: supervisorsRes.count || 0,
+        users: usersRes.count || 0
+      }
+    };
+  } catch (err: any) {
+    return {
+      connected: false,
+      counts: { schools: 0, teachers: 0, supervisors: 0, users: 0 },
+      error: err.message
+    };
   }
 }
