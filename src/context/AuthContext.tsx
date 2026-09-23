@@ -129,38 +129,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const activeYr = validYears.find((y) => y.isActive) || validYears[0] || null;
       setActiveEducationYear(activeYr);
 
-      // Check saved user in session/localStorage or default to user
-      const isLoggedOut = localStorage.getItem('si_supervisi_logged_out') === 'true';
-      const savedUserId = localStorage.getItem('si_supervisi_user_id');
-
+      // Access check: Always require login on initial web page access
+      // Only retain user if active within current session (sessionStorage)
+      const sessionUserId = sessionStorage.getItem('si_supervisi_user_id');
       let initialUser: User | null = null;
-      if (!isLoggedOut) {
-        if (savedUserId) {
-          initialUser = validUsers.find((u) => u.id === savedUserId) || null;
-        }
-        if (!initialUser) {
-          // Default to Guru Sumarni (user account) or Admin Dinas
-          initialUser = validUsers.find((u) => u.email === 'sumarni.sdntinap3@gmail.com') ||
-                        validUsers.find((u) => u.role === 'GURU') ||
-                        validUsers.find((u) => u.role === 'ADMIN_DINAS') ||
-                        validUsers[0] || null;
-        }
+
+      if (sessionUserId) {
+        initialUser = validUsers.find((u) => u.id === sessionUserId) || null;
       }
 
       setCurrentUser(initialUser);
       if (initialUser) {
-        localStorage.setItem('si_supervisi_user_id', initialUser.id);
         api.getNotifications(initialUser.id).then(setNotifications).catch(() => {});
       }
     } catch (err) {
       console.error('Failed to initialize auth state:', err);
-      // Fallback: Ensure user Sumarni is active even if network failed
-      const isLoggedOut = localStorage.getItem('si_supervisi_logged_out') === 'true';
-      if (!isLoggedOut) {
-        const fallbackUser = DEFAULT_DEMO_USERS[0];
-        setCurrentUser(fallbackUser);
-        localStorage.setItem('si_supervisi_user_id', fallbackUser.id);
-      }
+      // On error, start in logged out state showing Login page
+      setCurrentUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -243,8 +228,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const res = await api.login(identifier, password, role, userId);
       if (res && res.success && res.user) {
         setCurrentUser(res.user);
+        sessionStorage.setItem('si_supervisi_user_id', res.user.id);
         localStorage.removeItem('si_supervisi_logged_out');
-        localStorage.setItem('si_supervisi_user_id', res.user.id);
+        localStorage.removeItem('si_supervisi_user_id');
         api.getNotifications(res.user.id).then(setNotifications).catch(() => {});
         return true;
       }
@@ -270,8 +256,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (matchedUser) {
         setCurrentUser(matchedUser);
+        sessionStorage.setItem('si_supervisi_user_id', matchedUser.id);
         localStorage.removeItem('si_supervisi_logged_out');
-        localStorage.setItem('si_supervisi_user_id', matchedUser.id);
+        localStorage.removeItem('si_supervisi_user_id');
         return true;
       }
 
@@ -281,8 +268,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const switchUser = (user: User) => {
     setCurrentUser(user);
+    sessionStorage.setItem('si_supervisi_user_id', user.id);
     localStorage.removeItem('si_supervisi_logged_out');
-    localStorage.setItem('si_supervisi_user_id', user.id);
+    localStorage.removeItem('si_supervisi_user_id');
     api.getNotifications(user.id).then((notifs) => setNotifications(notifs));
   };
 
@@ -294,6 +282,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    sessionStorage.removeItem('si_supervisi_user_id');
     localStorage.removeItem('si_supervisi_user_id');
     localStorage.setItem('si_supervisi_logged_out', 'true');
     setCurrentUser(null);

@@ -18,12 +18,28 @@ import { useAuth } from '../context/AuthContext';
 import { PresetLogoIcon, ThemeColorKey } from '../types';
 
 export const LoginView: React.FC = () => {
-  const { login, appSettings } = useAuth();
+  const { login, appSettings, demoUsers } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleQuickLogin = async (user: any) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const success = await login(undefined, undefined, undefined, user.id);
+      if (!success) {
+        setErrorMessage(`Gagal masuk sebagai ${user.name}`);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || `Gagal masuk sebagai ${user.name}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const renderPresetLogo = (preset?: PresetLogoIcon) => {
     switch (preset) {
@@ -243,6 +259,73 @@ export const LoginView: React.FC = () => {
               </button>
             </div>
           </form>
+
+          {/* Quick Role Selection for Demo / Simulation */}
+          <div className="pt-4 border-t border-slate-700/60 space-y-2.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="font-semibold uppercase tracking-wider text-slate-400">Akses Cepat (Simulasi Peran)</span>
+              <span className="text-[10px] text-indigo-400">1-Klik Masuk</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {demoUsers.slice(0, 4).map((user) => {
+                const getRoleLabel = (r: string) => {
+                  switch (r) {
+                    case 'GURU':
+                      return 'Guru Kelas';
+                    case 'KEPALA_SEKOLAH':
+                      return 'Kepala Sekolah';
+                    case 'PENGAWAS':
+                      return 'Pengawas Pembina';
+                    case 'ADMIN_DINAS':
+                      return 'Admin Dinas';
+                    default:
+                      return r;
+                  }
+                };
+
+                const getRoleColor = (r: string) => {
+                  switch (r) {
+                    case 'GURU':
+                      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20';
+                    case 'KEPALA_SEKOLAH':
+                      return 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20';
+                    case 'PENGAWAS':
+                      return 'bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20';
+                    case 'ADMIN_DINAS':
+                      return 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20';
+                    default:
+                      return 'bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700';
+                  }
+                };
+
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleQuickLogin(user)}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${getRoleColor(
+                      user.role
+                    )} flex flex-col justify-between`}
+                  >
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider opacity-80">
+                        {getRoleLabel(user.role)}
+                      </div>
+                      <div className="text-xs font-semibold text-white truncate mt-0.5" title={user.name}>
+                        {user.name.split(',')[0]}
+                      </div>
+                    </div>
+                    <div className="text-[10px] opacity-70 mt-1 flex items-center justify-between">
+                      <span className="truncate">{user.username || 'user'}</span>
+                      <span className="text-[9px] font-mono">→</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Security Badge */}
           <div className="pt-3 border-t border-slate-700/60 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">

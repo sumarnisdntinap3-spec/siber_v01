@@ -28,13 +28,52 @@
         "npsn": { "type": "string", "description": "National School Number" },
         "name": { "type": "string", "description": "School name" },
         "address": { "type": "string", "description": "Full address" },
+        "subDistrict": { "type": "string", "description": "Kecamatan di Kabupaten Magetan" },
         "city": { "type": "string", "description": "City or regency" },
         "phone": { "type": "string", "description": "Contact phone number" },
         "accreditation": { "type": "string", "description": "School accreditation level" },
         "principalName": { "type": "string", "description": "Name of principal" },
+        "supervisorId": { "type": "string", "description": "Assigned supervisor ID" },
         "supervisorName": { "type": "string", "description": "Name of supervisor" }
       },
       "required": ["id", "npsn", "name"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher profile and assignment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique teacher ID" },
+        "userId": { "type": "string", "description": "User account ID" },
+        "nip": { "type": "string", "description": "NIP" },
+        "name": { "type": "string", "description": "Full name with academic degree" },
+        "schoolId": { "type": "string", "description": "Assigned school ID" },
+        "schoolName": { "type": "string", "description": "School name" },
+        "employmentStatus": { "type": "string", "description": "Status kepegawaian (PNS/PPPK/GTT/Honor Daerah)" },
+        "rankGrade": { "type": "string", "description": "Pangkat dan Golongan Ruang" },
+        "position": { "type": "string", "description": "Jabatan guru" },
+        "subject": { "type": "string", "description": "Mata pelajaran yang diampu" },
+        "educationLevel": { "type": "string", "description": "Pendidikan terakhir" },
+        "phone": { "type": "string", "description": "Nomor HP / WhatsApp" },
+        "email": { "type": "string", "description": "Email guru" }
+      },
+      "required": ["id", "name", "schoolId"]
+    },
+    "Supervisor": {
+      "title": "Supervisor",
+      "description": "School supervisor assigned by Dinas Pendidikan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique supervisor ID" },
+        "userId": { "type": "string", "description": "User account ID" },
+        "nip": { "type": "string", "description": "NIP Pengawas" },
+        "name": { "type": "string", "description": "Nama pengawas" },
+        "levels": { "type": "array", "description": "Jenjang binaan TK/SD/SMP" },
+        "wilayahKecamatan": { "type": "array", "description": "Kecamatan binaan di Magetan" },
+        "assignedSchoolIds": { "type": "array", "description": "Daftar ID sekolah binaan" },
+        "assignedSchoolNames": { "type": "array", "description": "Daftar nama sekolah binaan" }
+      },
+      "required": ["id", "nip", "name"]
     },
     "SupervisionSchedule": {
       "title": "SupervisionSchedule",
@@ -74,6 +113,20 @@
       },
       "required": ["id", "teacherId", "title", "subject", "status"]
     },
+    "EducationYear": {
+      "title": "EducationYear",
+      "description": "Academic year and semester definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique year ID" },
+        "name": { "type": "string", "description": "e.g. 2026/2027" },
+        "semester": { "type": "string", "enum": ["Ganjil", "Genap"] },
+        "startDate": { "type": "string", "description": "Start date" },
+        "endDate": { "type": "string", "description": "End date" },
+        "isActive": { "type": "boolean", "description": "Active flag" }
+      },
+      "required": ["id", "name", "semester"]
+    },
     "AuditLog": {
       "title": "AuditLog",
       "description": "System activity audit trail",
@@ -99,6 +152,14 @@
       "schema": "School",
       "description": "Educational institutions registered in system"
     },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Educator and teaching staff records"
+    },
+    "/supervisors/{supervisorId}": {
+      "schema": "Supervisor",
+      "description": "School supervisors and assigned regions"
+    },
     "/supervisions/{supervisionId}": {
       "schema": "SupervisionSchedule",
       "description": "Supervision plans, execution records, and evaluations"
@@ -106,6 +167,10 @@
     "/lessonPlans/{lessonPlanId}": {
       "schema": "LessonPlan",
       "description": "Uploaded teaching modules and verification records"
+    },
+    "/educationYears/{yearId}": {
+      "schema": "EducationYear",
+      "description": "Academic school years"
     },
     "/auditLogs/{logId}": {
       "schema": "AuditLog",

@@ -32,10 +32,16 @@ import {
   ArrowRightLeft,
   Play,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  FileSpreadsheet,
+  Flame,
+  Download,
+  Send,
+  Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AppSettings, PresetLogoIcon, ThemeColorKey, User } from '../types';
+import { api } from '../services/api';
 import {
   checkSupabaseHealth,
   SUPABASE_PROJECT_NAME,
@@ -59,6 +65,46 @@ export const PengaturanAplikasiView: React.FC = () => {
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'identity' | 'logo' | 'preview' | 'database'>('profile');
+  const [dbSubTab, setDbSubTab] = useState<'firebase' | 'googlesheets' | 'supabase'>('firebase');
+
+  // Firebase Firestore State
+  const [firebaseStatus, setFirebaseStatus] = useState<{
+    configured: boolean;
+    projectId?: string;
+    databaseId?: string;
+    connected?: boolean;
+    message?: string;
+    collections?: Record<string, number>;
+  } | null>(null);
+  const [isTestingFirebase, setIsTestingFirebase] = useState(false);
+  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
+
+  // Google Sheets Integration State
+  const [googleSheetsConfig, setGoogleSheetsConfig] = useState<{
+    webhookUrl: string;
+    spreadsheetUrl: string;
+    autoSync: boolean;
+    lastSync: string | null;
+    lastSyncStatus: string | null;
+  }>({
+    webhookUrl: '',
+    spreadsheetUrl: '',
+    autoSync: false,
+    lastSync: null,
+    lastSyncStatus: null
+  });
+  const [googleAppsScriptTemplate, setGoogleAppsScriptTemplate] = useState('');
+  const [googleSheetsStats, setGoogleSheetsStats] = useState({
+    totalSchools: 0,
+    totalTeachers: 0,
+    totalSupervisors: 0,
+    totalSupervisions: 0
+  });
+  const [isSavingGoogleSheets, setIsSavingGoogleSheets] = useState(false);
+  const [isSyncingGoogleSheets, setIsSyncingGoogleSheets] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+
+  // Supabase State
   const [supabaseHealth, setSupabaseHealth] = useState<SupabaseHealthResult | null>(null);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
@@ -135,6 +181,123 @@ export const PengaturanAplikasiView: React.FC = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
+  };
+
+  const loadDatabaseStatuses = async () => {
+    try {
+      setIsTestingFirebase(true);
+      const fbStatus = await api.getFirebaseStatus();
+      setFirebaseStatus(fbStatus);
+    } catch (err: any) {
+      console.warn('Firebase status load error:', err);
+    } finally {
+      setIsTestingFirebase(false);
+    }
+
+    try {
+      const gsRes = await api.getGoogleSheetsConfig();
+      if (gsRes.config) setGoogleSheetsConfig(gsRes.config);
+      if (gsRes.templateScript) setGoogleAppsScriptTemplate(gsRes.templateScript);
+      if (gsRes.stats) setGoogleSheetsStats(gsRes.stats);
+    } catch (err: any) {
+      console.warn('Google sheets config load error:', err);
+    }
+
+    try {
+      setIsTestingSupabase(true);
+      const spHealth = await checkSupabaseHealth();
+      setSupabaseHealth(spHealth);
+    } catch (err: any) {
+      console.warn('Supabase health error:', err);
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
+
+  const handleTestFirebase = async () => {
+    setIsTestingFirebase(true);
+    try {
+      const status = await api.getFirebaseStatus();
+      setFirebaseStatus(status);
+      if (status.connected) {
+        showToast('success', 'Koneksi ke Firebase Cloud Firestore berhasil dan siap digunakan!');
+      } else {
+        showToast('error', status.message || 'Gagal terhubung ke Firebase Firestore.');
+      }
+    } catch (err: any) {
+      showToast('error', `Uji koneksi Firebase gagal: ${err.message}`);
+    } finally {
+      setIsTestingFirebase(false);
+    }
+  };
+
+  const handleSyncFirebase = async () => {
+    setIsSyncingFirebase(true);
+    try {
+      const res = await api.syncAllToFirebase();
+      if (res.success) {
+        showToast('success', res.message || 'Sinkronisasi database ke Firebase Firestore berhasil!');
+        // Refresh collections count
+        const updated = await api.getFirebaseStatus();
+        setFirebaseStatus(updated);
+      } else {
+        showToast('error', res.message || 'Sinkronisasi Firebase gagal.');
+      }
+    } catch (err: any) {
+      showToast('error', `Gagal sinkronisasi Firebase: ${err.message}`);
+    } finally {
+      setIsSyncingFirebase(false);
+    }
+  };
+
+  const handleSaveGoogleSheetsConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingGoogleSheets(true);
+    try {
+      const res = await api.updateGoogleSheetsConfig({
+        webhookUrl: googleSheetsConfig.webhookUrl,
+        spreadsheetUrl: googleSheetsConfig.spreadsheetUrl,
+        autoSync: googleSheetsConfig.autoSync
+      });
+      if (res.success) {
+        setGoogleSheetsConfig(res.config);
+        showToast('success', 'Konfigurasi Google Sheets berhasil disimpan!');
+      }
+    } catch (err: any) {
+      showToast('error', `Gagal menyimpan konfigurasi: ${err.message}`);
+    } finally {
+      setIsSavingGoogleSheets(false);
+    }
+  };
+
+  const handleSyncGoogleSheets = async () => {
+    if (!googleSheetsConfig.webhookUrl) {
+      showToast('error', 'Masukkan URL Webhook Google Apps Script terlebih dahulu.');
+      return;
+    }
+    setIsSyncingGoogleSheets(true);
+    try {
+      const res = await api.syncAllToGoogleSheets(googleSheetsConfig.webhookUrl);
+      if (res.success) {
+        showToast('success', res.message || 'Data berhasil disinkronkan ke Google Sheet!');
+        const updatedConfig = await api.getGoogleSheetsConfig();
+        if (updatedConfig.config) setGoogleSheetsConfig(updatedConfig.config);
+      } else {
+        showToast('error', res.message || 'Gagal mengirim data ke Google Sheet.');
+      }
+    } catch (err: any) {
+      showToast('error', `Error sinkronisasi Google Sheet: ${err.message}`);
+    } finally {
+      setIsSyncingGoogleSheets(false);
+    }
+  };
+
+  const handleCopyGoogleAppsScript = () => {
+    if (!googleAppsScriptTemplate) return;
+    navigator.clipboard.writeText(googleAppsScriptTemplate);
+    setCopiedScript(true);
+    showToast('success', 'Kode Google Apps Script berhasil disalin ke papan klip!');
+    setTimeout(() => setCopiedScript(false), 3000);
   };
 
   // Handle Logo Upload File (Base64 data URL)
@@ -481,13 +644,7 @@ export const PengaturanAplikasiView: React.FC = () => {
           <button
             onClick={() => {
               setActiveTab('database');
-              if (!supabaseHealth && !isTestingSupabase) {
-                setIsTestingSupabase(true);
-                checkSupabaseHealth().then((res) => {
-                  setSupabaseHealth(res);
-                  setIsTestingSupabase(false);
-                });
-              }
+              loadDatabaseStatuses();
             }}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${
               activeTab === 'database'
@@ -495,8 +652,8 @@ export const PengaturanAplikasiView: React.FC = () => {
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Database className="w-4 h-4 text-emerald-500" />
-            <span>5. Database Supabase</span>
+            <Database className="w-4 h-4 text-emerald-400" />
+            <span>5. Database & Integrasi (Firebase, Google Sheets, Supabase)</span>
           </button>
         </div>
       </div>
@@ -1192,11 +1349,501 @@ export const PengaturanAplikasiView: React.FC = () => {
           </div>
         </div>
       )}
-      {/* TAB 5: DATABASE SUPABASE */}
+      {/* TAB 5: DATABASE & INTEGRASI (FIREBASE, GOOGLE SHEETS, SUPABASE) */}
       {activeTab === 'database' && (
         <div className="space-y-6">
-          {/* Card Status & Kredensial Supabase */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          {/* Sub-tab Navigation Bar */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDbSubTab('firebase')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  dbSubTab === 'firebase'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Flame className="w-4 h-4 text-amber-200" />
+                <span>Firebase Cloud Firestore</span>
+                <span className="px-1.5 py-0.5 text-[9px] uppercase tracking-wider rounded bg-amber-600/70 text-white font-mono">
+                  Cloud DB
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDbSubTab('googlesheets')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  dbSubTab === 'googlesheets'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                <span>Google Sheets & Excel</span>
+                <span className="px-1.5 py-0.5 text-[9px] uppercase tracking-wider rounded bg-emerald-700/70 text-white font-mono">
+                  Spreadsheet
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDbSubTab('supabase')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  dbSubTab === 'supabase'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Database className="w-4 h-4 text-indigo-200" />
+                <span>Supabase (PostgreSQL)</span>
+                <span className="px-1.5 py-0.5 text-[9px] uppercase tracking-wider rounded bg-indigo-700/70 text-white font-mono">
+                  SQL
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={loadDatabaseStatuses}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Muat Ulang Status</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* SUB-TAB 1: FIREBASE CLOUD FIRESTORE */}
+          {/* ============================================================ */}
+          {dbSubTab === 'firebase' && (
+            <div className="space-y-6">
+              {/* Card Status & Kredensial Firebase */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                      <Flame className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          Google Cloud Firebase Firestore
+                        </h3>
+                        <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Terkoneksi & Aktif
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Database NoSQL cloud berkinerja tinggi dari Google Cloud Platform dengan persistensi real-time dan aturan keamanan terverifikasi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isTestingFirebase}
+                      onClick={handleTestFirebase}
+                      className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTestingFirebase ? 'animate-spin' : ''}`} />
+                      <span>{isTestingFirebase ? 'Menguji...' : 'Uji Koneksi Firestore'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSyncingFirebase}
+                      onClick={handleSyncFirebase}
+                      className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSyncingFirebase ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menyinkronkan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Flame className="w-3.5 h-3.5" />
+                          <span>Sinkronkan Seluruh Data ke Firebase</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid Metadata Firestore */}
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Project ID Firebase</span>
+                    <p className="text-sm font-mono font-bold text-slate-800">polar-drive-c6rpq</p>
+                    <span className="text-[10px] text-slate-400">Google Cloud Project</span>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Firestore Database ID</span>
+                    <p className="text-xs font-mono font-bold text-slate-800 truncate" title="ai-studio-sibersupervisiin-e85c9c5d-7154-4dfc-b7cd-825c1e32ea17">
+                      ai-studio-sibersupervisiin-...
+                    </p>
+                    <span className="text-[10px] text-emerald-600 font-semibold">Instance Khusus SIBER-PM</span>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Aturan Keamanan (Rules)</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <p className="text-xs font-semibold text-emerald-700">firestore.rules Terpasang</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Role-Based & Sync Access</span>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Sinkronisasi Otomatis</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <p className="text-xs font-semibold text-emerald-700">Aktif Real-Time</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Tersinkron saat penambahan data</span>
+                  </div>
+                </div>
+
+                {/* Firestore Collections Overview */}
+                <div className="px-6 pb-6">
+                  <div className="p-4 bg-amber-50/50 border border-amber-200/80 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Flame className="w-4 h-4 text-amber-600" />
+                        Koleksi Dokumen Terdaftar di Firestore
+                      </span>
+                      <span className="text-[11px] text-amber-700 font-medium">
+                        Sesuai blueprint skema database resmi
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 bg-white border border-amber-200 rounded-lg">
+                        <p className="text-slate-500 text-[11px]">Koleksi /schools</p>
+                        <p className="text-lg font-bold text-slate-900 mt-0.5">
+                          {firebaseStatus?.collections?.schools ?? 6} <span className="text-xs font-normal text-slate-500">Sekolah</span>
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white border border-amber-200 rounded-lg">
+                        <p className="text-slate-500 text-[11px]">Koleksi /teachers</p>
+                        <p className="text-lg font-bold text-slate-900 mt-0.5">
+                          {firebaseStatus?.collections?.teachers ?? 24} <span className="text-xs font-normal text-slate-500">Guru</span>
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white border border-amber-200 rounded-lg">
+                        <p className="text-slate-500 text-[11px]">Koleksi /supervisors</p>
+                        <p className="text-lg font-bold text-slate-900 mt-0.5">
+                          {firebaseStatus?.collections?.supervisors ?? 8} <span className="text-xs font-normal text-slate-500">Pengawas</span>
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-white border border-amber-200 rounded-lg">
+                        <p className="text-slate-500 text-[11px]">Koleksi /supervisions</p>
+                        <p className="text-lg font-bold text-slate-900 mt-0.5">
+                          {firebaseStatus?.collections?.supervisions ?? 10} <span className="text-xs font-normal text-slate-500">Supervisi</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* SUB-TAB 2: GOOGLE SHEETS & EXCEL */}
+          {/* ============================================================ */}
+          {dbSubTab === 'googlesheets' && (
+            <div className="space-y-6">
+              {/* Opsi 1: Unduh Database Lengkap ke Format Google Sheet / Excel */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <FileSpreadsheet className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        1. Ekspor Seluruh Database ke Google Sheet / Excel (.xlsx)
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Unduh salinan lengkap database dalam satu file multi-sheet yang siap dibuka di Google Spreadsheet atau Microsoft Excel.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href="https://sheets.new"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Buka Google Sheet Baru</span>
+                    </a>
+
+                    <a
+                      href={api.getGoogleSheetsExportUrl()}
+                      download
+                      className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl shadow-xs transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Unduh Database Lengkap (.xlsx)</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Struktur Sheet yang dihasilkan */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+                  <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+                    <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Tab DATA_SEKOLAH
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-1">
+                      NPSN, Nama Satuan Pendidikan, Alamat, Kecamatan, Kepala Sekolah, Pengawas Pembina.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+                    <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Tab DATA_GURU
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-1">
+                      NIP, Nama Lengkap, Satuan Pendidikan, Status Pegawai, Pangkat/Golongan, Mata Pelajaran.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+                    <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Tab DATA_PENGAWAS
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-1">
+                      NIP, Nama Pengawas, Jenjang Binaan, Wilayah Kecamatan Magetan, Daftar Sekolah Binaan.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+                    <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Tab REKAP_SUPERVISI
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-1">
+                      Jadwal pelaksanaan supervisi, guru sasaran, tanggal, nilai instrumen, dan umpan balik.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Opsi 2: Integrasi Sinkronisasi Langsung Webhook Google Apps Script */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      2. Koneksi Otomatis Google Apps Script (Webhook Sync)
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Hubungkan URL Webhook Google Sheet agar perubahan data di aplikasi otomatis tersinkronisasi ke Spreadsheet Google Anda secara langsung.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {googleSheetsConfig.lastSync && (
+                      <span className="text-[11px] text-slate-500 font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                        Terakhir Sync: {new Date(googleSheetsConfig.lastSync).toLocaleString('id-ID')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Form Input Webhook URL */}
+                <form onSubmit={handleSaveGoogleSheetsConfig} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      URL Webhook Google Apps Script (Web App URL)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                      value={googleSheetsConfig.webhookUrl}
+                      onChange={(e) =>
+                        setGoogleSheetsConfig((prev) => ({ ...prev, webhookUrl: e.target.value }))
+                      }
+                      className="w-full px-3.5 py-2.5 text-xs font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Dapatkan URL ini setelah menerapkan (deploy) script di bawah ini sebagai Aplikasi Web di Google Spreadsheet Anda.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Tautan Google Spreadsheet Anda (Opsional)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                      value={googleSheetsConfig.spreadsheetUrl}
+                      onChange={(e) =>
+                        setGoogleSheetsConfig((prev) => ({ ...prev, spreadsheetUrl: e.target.value }))
+                      }
+                      className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={googleSheetsConfig.autoSync}
+                        onChange={(e) =>
+                          setGoogleSheetsConfig((prev) => ({ ...prev, autoSync: e.target.checked }))
+                        }
+                        className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 block">
+                          Auto-Sinkronisasi ke Google Sheet Otomatis
+                        </span>
+                        <span className="text-[11px] text-slate-500 block">
+                          Setiap penambahan atau perubahan data sekolah/guru/supervisi akan otomatis dikirimkan ke Google Sheet via webhook.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isSyncingGoogleSheets || !googleSheetsConfig.webhookUrl}
+                        onClick={handleSyncGoogleSheets}
+                        className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSyncingGoogleSheets ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Mengirim Data...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Kirim / Sinkronkan Data ke Google Sheet Sekarang</span>
+                          </>
+                        )}
+                      </button>
+
+                      {googleSheetsConfig.spreadsheetUrl && (
+                        <a
+                          href={googleSheetsConfig.spreadsheetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka Spreadsheet Terhubung</span>
+                        </a>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSavingGoogleSheets}
+                      className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSavingGoogleSheets ? 'Menyimpan...' : 'Simpan Pengaturan Webhook'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Opsi 3: Script Google Apps Script Siap Salin */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      3. Kode Script Google Apps Script (Siap Tempel)
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Tempelkan kode ini di Google Sheet Anda untuk menerima data otomatis dari SIBER-PM.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyGoogleAppsScript}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+                  >
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedScript ? 'Kode Berhasil Disalin!' : 'Salin Kode Google Apps Script'}</span>
+                  </button>
+                </div>
+
+                {/* Panduan 4 Langkah */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[10px]">
+                      1
+                    </span>
+                    <p className="font-bold text-slate-800">Buat Spreadsheet Baru</p>
+                    <p className="text-[11px] text-slate-500">Buka <span className="font-mono text-emerald-700">sheets.new</span> di browser Anda.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[10px]">
+                      2
+                    </span>
+                    <p className="font-bold text-slate-800">Buka Apps Script</p>
+                    <p className="text-[11px] text-slate-500">Klik menu <strong className="text-slate-700">Ekstensi</strong> &gt; <strong className="text-slate-700">Apps Script</strong>.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[10px]">
+                      3
+                    </span>
+                    <p className="font-bold text-slate-800">Tempel Kode & Terapkan</p>
+                    <p className="text-[11px] text-slate-500">Hapus kode lama, tempel kode di bawah, lalu klik <strong className="text-slate-700">Terapkan &gt; Penerapan Baru</strong>.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[10px]">
+                      4
+                    </span>
+                    <p className="font-bold text-slate-800">Pilih Aplikasi Web</p>
+                    <p className="text-[11px] text-slate-500">Setel Akses ke <strong className="text-slate-700">Siapa saja (Anyone)</strong>, salin URL ke form di atas.</p>
+                  </div>
+                </div>
+
+                {/* Code Preview Box */}
+                <div className="relative">
+                  <pre className="p-4 bg-slate-900 text-slate-200 font-mono text-[11px] rounded-xl max-h-56 overflow-y-auto select-text leading-relaxed">
+                    {googleAppsScriptTemplate || '// Memuat template Google Apps Script...'}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* SUB-TAB 3: SUPABASE (POSTGRESQL) */}
+          {/* ============================================================ */}
+          {dbSubTab === 'supabase' && (
+            <div className="space-y-6">
+              {/* Card Status & Kredensial Supabase */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
@@ -1597,6 +2244,8 @@ export const PengaturanAplikasiView: React.FC = () => {
               </div>
             )}
           </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -18,6 +18,25 @@ import {
   SUPABASE_PROJECT_ID,
   SUPABASE_PROJECT_NAME
 } from './server/supabase.js';
+import {
+  checkFirebaseHealth,
+  syncSchoolToFirebase,
+  deleteSchoolFromFirebase,
+  syncTeacherToFirebase,
+  deleteTeacherFromFirebase,
+  syncSupervisorToFirebase,
+  deleteSupervisorFromFirebase,
+  syncSupervisionToFirebase,
+  FIREBASE_PROJECT_ID,
+  FIREBASE_DATABASE_ID
+} from './server/firebase.js';
+import {
+  currentGoogleSheetsConfig,
+  updateGoogleSheetsConfig,
+  getGoogleAppsScriptTemplate,
+  buildGoogleSheetsWorkbook,
+  sendToGoogleSheetsWebhook
+} from './server/googlesheets.js';
 
 async function startServer() {
   const app = express();
@@ -86,6 +105,150 @@ async function startServer() {
         synced: { schools: schoolsSynced, supervisors: supervisorsSynced, teachers: teachersSynced },
         currentCounts: countsInfo.counts
       });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ==========================================
+  // 0B. FIREBASE FIRESTORE DATABASE ROUTES
+  // ==========================================
+  app.get('/api/firebase/status', async (req: Request, res: Response) => {
+    try {
+      const health = await checkFirebaseHealth();
+      res.json({
+        configured: true,
+        projectId: FIREBASE_PROJECT_ID,
+        databaseId: FIREBASE_DATABASE_ID,
+        connected: health.connected,
+        message: health.message,
+        collections: health.collections
+      });
+    } catch (err: any) {
+      res.status(500).json({ configured: false, error: err.message });
+    }
+  });
+
+  app.post('/api/firebase/sync-all', async (req: Request, res: Response) => {
+    try {
+      let schoolsSynced = 0;
+      let teachersSynced = 0;
+      let supervisorsSynced = 0;
+      let supervisionsSynced = 0;
+
+      // 1. Sync Schools
+      for (const sch of db.schools) {
+        const ok = await syncSchoolToFirebase(sch);
+        if (ok) schoolsSynced++;
+      }
+
+      // 2. Sync Supervisors
+      for (const sp of db.supervisors) {
+        const user = db.users.find((u) => u.id === sp.userId);
+        const ok = await syncSupervisorToFirebase(sp, user);
+        if (ok) supervisorsSynced++;
+      }
+
+      // 3. Sync Teachers
+      for (const t of db.teachers) {
+        const user = db.users.find((u) => u.id === t.userId);
+        const ok = await syncTeacherToFirebase(t, user);
+        if (ok) teachersSynced++;
+      }
+
+      // 4. Sync Supervisions
+      for (const sv of db.supervisionRequests) {
+        const ok = await syncSupervisionToFirebase(sv);
+        if (ok) supervisionsSynced++;
+      }
+
+      // 5. Trigger Google Sheets auto-sync if configured
+      if (currentGoogleSheetsConfig.autoSync && currentGoogleSheetsConfig.webhookUrl) {
+        sendToGoogleSheetsWebhook(currentGoogleSheetsConfig.webhookUrl, {
+          schools: db.schools,
+          teachers: db.teachers,
+          supervisors: db.supervisors,
+          supervisions: db.supervisionRequests
+        }).catch((e) => console.warn('[GoogleSheets] Auto-sync background error:', e));
+      }
+
+      res.json({
+        success: true,
+        message: `Sinkronisasi Firebase Firestore berhasil: ${schoolsSynced} sekolah, ${supervisorsSynced} pengawas, ${teachersSynced} guru, ${supervisionsSynced} jadwal/hasil supervisi`,
+        synced: {
+          schools: schoolsSynced,
+          supervisors: supervisorsSynced,
+          teachers: teachersSynced,
+          supervisions: supervisionsSynced
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ==========================================
+  // 0C. GOOGLE SHEETS INTEGRATION ROUTES
+  // ==========================================
+  app.get('/api/google-sheets/config', (req: Request, res: Response) => {
+    res.json({
+      config: currentGoogleSheetsConfig,
+      templateScript: getGoogleAppsScriptTemplate(),
+      stats: {
+        totalSchools: db.schools.length,
+        totalTeachers: db.teachers.length,
+        totalSupervisors: db.supervisors.length,
+        totalSupervisions: db.supervisionRequests.length
+      }
+    });
+  });
+
+  app.post('/api/google-sheets/config', (req: Request, res: Response) => {
+    const updated = updateGoogleSheetsConfig(req.body);
+    res.json({
+      success: true,
+      message: 'Konfigurasi Google Sheets berhasil diperbarui',
+      config: updated
+    });
+  });
+
+  app.post('/api/google-sheets/sync', async (req: Request, res: Response) => {
+    try {
+      const webhookUrl = req.body?.webhookUrl || currentGoogleSheetsConfig.webhookUrl;
+      if (!webhookUrl) {
+        return res.status(400).json({
+          success: false,
+          message: 'URL Webhook Google Sheets belum ditentukan. Masukkan Webhook URL dari Google Apps Script Anda.'
+        });
+      }
+
+      const payload = {
+        schools: db.schools,
+        teachers: db.teachers,
+        supervisors: db.supervisors,
+        supervisions: db.supervisionRequests
+      };
+
+      const result = await sendToGoogleSheetsWebhook(webhookUrl, payload);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get('/api/google-sheets/export-all', (req: Request, res: Response) => {
+    try {
+      const buffer = buildGoogleSheetsWorkbook({
+        schools: db.schools,
+        teachers: db.teachers,
+        supervisors: db.supervisors,
+        supervisions: db.supervisionRequests
+      });
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=SIBER-PM-Database-Magetan-${todayStr}.xlsx`);
+      res.send(buffer);
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -412,8 +575,9 @@ async function startServer() {
       req.ip || '127.0.0.1'
     );
 
-    // Sync to Supabase in background
+    // Sync to Supabase & Firebase in background
     syncSchoolToSupabase(newSchool).catch((err) => console.warn('Supabase sync error:', err));
+    syncSchoolToFirebase(newSchool).catch((err) => console.warn('Firebase sync error:', err));
 
     res.status(201).json(newSchool);
   });
@@ -440,8 +604,9 @@ async function startServer() {
       req.ip || '127.0.0.1'
     );
 
-    // Sync update to Supabase
+    // Sync update to Supabase & Firebase
     syncSchoolToSupabase(db.schools[index]).catch((err) => console.warn('Supabase sync error:', err));
+    syncSchoolToFirebase(db.schools[index]).catch((err) => console.warn('Firebase sync error:', err));
 
     res.json(db.schools[index]);
   });
@@ -460,6 +625,7 @@ async function startServer() {
     // If school was already removed (or multiple clicks triggered), return idempotent success
     if (index === -1) {
       deleteSchoolFromSupabase(cleanId).catch(() => {});
+      deleteSchoolFromFirebase(cleanId).catch(() => {});
       return res.json({
         success: true,
         message: 'Satuan pendidikan sudah tidak ada atau telah berhasil dihapus.',
@@ -469,6 +635,8 @@ async function startServer() {
     }
 
     const removedSchool = db.schools[index];
+    deleteSchoolFromSupabase(removedSchool.id).catch(() => {});
+    deleteSchoolFromFirebase(removedSchool.id).catch(() => {});
 
     // Clean up references in supervisors
     db.supervisors.forEach((sup) => {
@@ -812,8 +980,9 @@ async function startServer() {
     };
     db.teachers.push(newTeacher);
 
-    // Sync new teacher and user account to Supabase
+    // Sync new teacher and user account to Supabase & Firebase
     syncTeacherToSupabase(newTeacher, newUser).catch((err) => console.warn('Supabase teacher sync error:', err));
+    syncTeacherToFirebase(newTeacher, newUser).catch((err) => console.warn('Firebase teacher sync error:', err));
 
     db.addAuditLog(
       'u-dinas',
@@ -840,9 +1009,10 @@ async function startServer() {
       db.users[userIndex].nip = db.teachers[index].nip;
     }
 
-    // Sync updated teacher to Supabase
+    // Sync updated teacher to Supabase & Firebase
     const associatedUser = userIndex !== -1 ? db.users[userIndex] : undefined;
     syncTeacherToSupabase(db.teachers[index], associatedUser).catch((err) => console.warn('Supabase teacher update sync error:', err));
+    syncTeacherToFirebase(db.teachers[index], associatedUser).catch((err) => console.warn('Firebase teacher update sync error:', err));
 
     db.addAuditLog(
       'u-dinas',
@@ -873,8 +1043,9 @@ async function startServer() {
 
     db.teachers.splice(index, 1);
 
-    // Sync deletion to Supabase
+    // Sync deletion to Supabase & Firebase
     deleteTeacherFromSupabase(deleted.id, deleted.userId).catch((err) => console.warn('Supabase teacher delete error:', err));
+    deleteTeacherFromFirebase(deleted.id).catch((err) => console.warn('Firebase teacher delete error:', err));
 
     // Update school teacher count
     if (deleted.schoolId) {
@@ -1421,8 +1592,9 @@ async function startServer() {
       }
     });
 
-    // Sync new supervisor and user account to Supabase
+    // Sync new supervisor and user account to Supabase & Firebase
     syncSupervisorToSupabase(newSupervisor, newUser).catch((err) => console.warn('Supabase supervisor sync error:', err));
+    syncSupervisorToFirebase(newSupervisor, newUser).catch((err) => console.warn('Firebase supervisor sync error:', err));
 
     db.addAuditLog(
       'u-dinas',
@@ -1522,9 +1694,10 @@ async function startServer() {
       });
     }
 
-    // Sync updated supervisor to Supabase
+    // Sync updated supervisor to Supabase & Firebase
     const associatedUser = userIndex !== -1 ? db.users[userIndex] : undefined;
     syncSupervisorToSupabase(db.supervisors[index], associatedUser).catch((err) => console.warn('Supabase supervisor update sync error:', err));
+    syncSupervisorToFirebase(db.supervisors[index], associatedUser).catch((err) => console.warn('Firebase supervisor update sync error:', err));
 
     db.addAuditLog(
       'u-dinas',
@@ -1555,8 +1728,9 @@ async function startServer() {
 
     db.supervisors.splice(index, 1);
 
-    // Sync deletion to Supabase
+    // Sync deletion to Supabase & Firebase
     deleteSupervisorFromSupabase(deleted.id, deleted.userId).catch((err) => console.warn('Supabase supervisor delete error:', err));
+    deleteSupervisorFromFirebase(deleted.id).catch((err) => console.warn('Firebase supervisor delete error:', err));
 
     db.addAuditLog(
       'u-dinas',

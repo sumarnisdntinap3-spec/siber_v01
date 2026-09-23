@@ -675,5 +675,84 @@ export const api = {
     return request(`${BASE_URL}/supabase/sync-all`, {
       method: 'POST'
     });
+  },
+
+  // Firebase Firestore Status & Sync
+  async getFirebaseStatus(): Promise<{
+    configured: boolean;
+    projectId?: string;
+    databaseId?: string;
+    connected?: boolean;
+    message?: string;
+    collections?: Record<string, number>;
+    error?: string;
+  }> {
+    return request(`${BASE_URL}/firebase/status`);
+  },
+
+  async syncAllToFirebase(): Promise<{
+    success: boolean;
+    message: string;
+    synced?: {
+      schools: number;
+      supervisors: number;
+      teachers: number;
+      supervisions: number;
+    };
+  }> {
+    return request(`${BASE_URL}/firebase/sync-all`, {
+      method: 'POST'
+    });
+  },
+
+  // Google Sheets Integration
+  async getGoogleSheetsConfig(): Promise<{
+    config: {
+      webhookUrl: string;
+      spreadsheetUrl: string;
+      autoSync: boolean;
+      lastSync: string | null;
+      lastSyncStatus: string | null;
+    };
+    templateScript: string;
+    stats: {
+      totalSchools: number;
+      totalTeachers: number;
+      totalSupervisors: number;
+      totalSupervisions: number;
+    };
+  }> {
+    return request(`${BASE_URL}/google-sheets/config`);
+  },
+
+  async updateGoogleSheetsConfig(config: {
+    webhookUrl?: string;
+    spreadsheetUrl?: string;
+    autoSync?: boolean;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    config: any;
+  }> {
+    return request(`${BASE_URL}/google-sheets/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+  },
+
+  async syncAllToGoogleSheets(webhookUrl?: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return request(`${BASE_URL}/google-sheets/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl })
+    });
+  },
+
+  getGoogleSheetsExportUrl(): string {
+    return `${BASE_URL}/google-sheets/export-all`;
   }
 };

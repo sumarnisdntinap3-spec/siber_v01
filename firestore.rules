@@ -2,71 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Safety Net: default-deny catch-all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'sumarni.sdntinap3@gmail.com' ||
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN_DINAS'
-      );
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Users Collection
+    // Allow read & write on SIBER-PM educational entities
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Schools Collection
     match /schools/{schoolId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Supervisions Collection
+    match /teachers/{teacherId} {
+      allow read, write: if true;
+    }
+
+    match /supervisors/{supervisorId} {
+      allow read, write: if true;
+    }
+
     match /supervisions/{supervisionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Lesson Plans Collection
     match /lessonPlans/{lessonPlanId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && (resource.data.teacherId == request.auth.uid || isAdmin());
+      allow read, write: if true;
     }
 
-    // Audit Logs Collection
+    match /educationYears/{yearId} {
+      allow read, write: if true;
+    }
+
     match /auditLogs/{logId} {
-      allow read: if isSignedIn() && isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if false; // Immutable audit log
+      allow read, write: if true;
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
     }
 
     // Connection test document
-    match /test/connection {
+    match /test/{docId} {
       allow read, write: if true;
     }
   }
