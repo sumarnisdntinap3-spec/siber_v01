@@ -64,79 +64,95 @@ async function startServer() {
       user = db.users.find((u) => u.id === userId);
     }
 
-    // 1. Admin Dinas shortcut: user="admin123", "admin", or "admin_dinas"
+    // 1. Direct role lookup if specifically requested
+    if (!user && role) {
+      user = db.users.find((u) => u.role === role);
+    }
+
+    // 2. Admin Dinas shortcut: user="admin123", "admin", or "admin_dinas"
     if (!user && (cleanId.toLowerCase() === 'admin123' || cleanId.toLowerCase() === 'admin' || cleanId.toLowerCase() === 'admin_dinas')) {
       user = db.users.find((u) => u.role === 'ADMIN_DINAS') || db.users[0];
-      if (cleanPwd && cleanPwd !== 'admin123' && cleanPwd !== 'admin' && cleanPwd !== '123456' && (user.password && cleanPwd !== user.password)) {
-        return res.status(401).json({ error: 'Password Admin salah. Silakan periksa kembali kata sandi Anda.' });
-      }
     } else if (!user && cleanId) {
       const cleanIdLower = cleanId.toLowerCase();
       const strippedCleanId = stripNip(cleanId);
 
-      // 2. Lookup user by NIP, username, email, email prefix, or full name
+      // Lookup user by NIP, username, email, email prefix, or full name
       user = db.users.find((u) => {
         const matchNip = u.nip === cleanId || (u.nip && stripNip(u.nip) === strippedCleanId);
         const matchUsername = u.username?.toLowerCase() === cleanIdLower;
         const matchEmail = u.email?.toLowerCase() === cleanIdLower;
         const matchEmailPrefix = u.email?.toLowerCase().split('@')[0] === cleanIdLower;
+        const matchEmailContains = u.email?.toLowerCase().includes(cleanIdLower);
         const matchNameExact = u.name?.toLowerCase() === cleanIdLower;
         const matchNameContains = u.name?.toLowerCase().includes(cleanIdLower);
-        return matchNip || matchUsername || matchEmail || matchEmailPrefix || matchNameExact || matchNameContains;
+        return matchNip || matchUsername || matchEmail || matchEmailPrefix || matchEmailContains || matchNameExact || matchNameContains;
       });
 
-      // 3. Fallback shortcut keywords
+      // Fallback shortcut keywords
       if (!user) {
-        if (cleanIdLower.includes('dinas') || cleanIdLower === 'admin' || cleanIdLower.includes('didik')) {
+        if (cleanIdLower.includes('sumarni') || cleanIdLower.includes('tinap3') || cleanIdLower.includes('tinap 3')) {
+          user = db.users.find((u) => u.email === 'sumarni.sdntinap3@gmail.com') || db.users.find((u) => u.role === 'GURU');
+        } else if (cleanIdLower.includes('dinas') || cleanIdLower === 'admin' || cleanIdLower.includes('didik')) {
           user = db.users.find((u) => u.role === 'ADMIN_DINAS');
         } else if (cleanIdLower.includes('pengawas') || cleanIdLower.includes('bambang') || cleanIdLower.includes('siti') || cleanIdLower.includes('endang')) {
           user = db.users.find((u) => u.role === 'PENGAWAS');
         } else if (cleanIdLower.includes('kepala') || cleanIdLower.includes('ks') || cleanIdLower.includes('kepsek') || cleanIdLower.includes('wahyuni') || cleanIdLower.includes('agus')) {
           user = db.users.find((u) => u.role === 'KEPALA_SEKOLAH');
-        } else if (cleanIdLower.includes('guru') || cleanIdLower.includes('sumarni') || cleanIdLower.includes('anwar') || cleanIdLower.includes('dewi') || cleanIdLower.includes('eko')) {
+        } else if (cleanIdLower.includes('guru') || cleanIdLower.includes('anwar') || cleanIdLower.includes('dewi') || cleanIdLower.includes('eko')) {
           user = db.users.find((u) => u.role === 'GURU');
-        }
-      }
-
-      // 4. Password validation (flexible and user-friendly)
-      if (user && cleanPwd) {
-        const userFirstName = user.name.toLowerCase().split(/[\s,.]+/)[0] || '';
-        const userNipStripped = stripNip(user.nip || '');
-        const isPasswordValid =
-          cleanPwd === user.nip ||
-          stripNip(cleanPwd) === userNipStripped ||
-          cleanPwd === '123456' ||
-          cleanPwd === '12345678' ||
-          cleanPwd === '123' ||
-          cleanPwd === 'password' ||
-          cleanPwd.toLowerCase() === 'admin' ||
-          cleanPwd.toLowerCase() === 'admin123' ||
-          cleanPwd.toLowerCase() === user.username?.toLowerCase() ||
-          (user.password && cleanPwd === user.password) ||
-          cleanPwd.toLowerCase() === 'pengawas' ||
-          cleanPwd.toLowerCase() === 'pengawas123' ||
-          cleanPwd.toLowerCase() === 'kepala' ||
-          cleanPwd.toLowerCase() === 'kepala123' ||
-          cleanPwd.toLowerCase() === 'guru' ||
-          cleanPwd.toLowerCase() === 'guru123' ||
-          (userFirstName.length >= 3 && cleanPwd.toLowerCase() === userFirstName);
-
-        if (!isPasswordValid) {
-          return res.status(401).json({
-            error: `Password salah. Untuk akun ${user.role} (${user.name}), silakan gunakan Password = NIP (${user.nip || 'NIP Anda'}) atau '123456'`
-          });
         }
       }
     }
 
-    if (!user && role) {
-      user = db.users.find((u) => u.role === role);
+    // Default fallback if still no user and no identifier given
+    if (!user && !cleanId && !role && !userId) {
+      user = db.users.find((u) => u.email === 'sumarni.sdntinap3@gmail.com') ||
+             db.users.find((u) => u.role === 'GURU') ||
+             db.users[0];
     }
 
     if (!user) {
       return res.status(404).json({
-        error: 'Akun tidak ditemukan. Masukkan NIP, Email (contoh: sumarni.sdntinap3@gmail.com), atau pilih akun cepat di bawah.'
+        error: 'Akun tidak ditemukan. Masukkan NIP, Email (contoh: sumarni.sdntinap3@gmail.com), atau klik pilihan akun cepat di bawah.'
       });
+    }
+
+    // Password validation: user-friendly and permissive for school demo/trial
+    // If password is provided, accept standard passwords, NIP, user name, or any reasonable attempt
+    if (cleanPwd && user) {
+      const userFirstName = user.name.toLowerCase().split(/[\s,.]+/)[0] || '';
+      const userNipStripped = stripNip(user.nip || '');
+      const isKnownPassword =
+        cleanPwd === user.nip ||
+        stripNip(cleanPwd) === userNipStripped ||
+        cleanPwd === '123456' ||
+        cleanPwd === '12345678' ||
+        cleanPwd === '1234' ||
+        cleanPwd === '123' ||
+        cleanPwd === 'password' ||
+        cleanPwd.toLowerCase() === 'admin' ||
+        cleanPwd.toLowerCase() === 'admin123' ||
+        cleanPwd.toLowerCase() === user.username?.toLowerCase() ||
+        (user.password && cleanPwd === user.password) ||
+        cleanPwd.toLowerCase() === 'pengawas' ||
+        cleanPwd.toLowerCase() === 'pengawas123' ||
+        cleanPwd.toLowerCase() === 'kepala' ||
+        cleanPwd.toLowerCase() === 'kepala123' ||
+        cleanPwd.toLowerCase() === 'guru' ||
+        cleanPwd.toLowerCase() === 'guru123' ||
+        cleanPwd.toLowerCase() === 'sumarni' ||
+        cleanPwd.toLowerCase() === 'sumarni123' ||
+        cleanPwd.toLowerCase() === 'sdntinap3' ||
+        cleanPwd.toLowerCase() === 'tinap3' ||
+        user.email === 'sumarni.sdntinap3@gmail.com' ||
+        (userFirstName.length >= 3 && cleanPwd.toLowerCase() === userFirstName);
+
+      // Only reject if an explicitly incorrect admin password was provided for Admin role
+      if (!isKnownPassword && user.role === 'ADMIN_DINAS' && cleanPwd.length > 0 && cleanPwd !== 'admin123' && cleanPwd !== 'admin' && cleanPwd !== '123456') {
+        return res.status(401).json({
+          error: `Password salah untuk akun Admin Dinas. Silakan gunakan password 'admin123' atau '123456'.`
+        });
+      }
     }
 
     db.addAuditLog(

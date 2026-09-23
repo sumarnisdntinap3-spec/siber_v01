@@ -44,7 +44,7 @@ const AccessDeniedView: React.FC<{ onBackToDashboard: () => void }> = ({ onBackT
 );
 
 const MainLayout: React.FC = () => {
-  const { isAuthenticated, currentRole, appSettings } = useAuth();
+  const { isAuthenticated, currentRole, appSettings, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
@@ -124,6 +124,24 @@ const MainLayout: React.FC = () => {
   const handleSelectTab = (tab: string) => {
     setActiveTab(tab);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="relative mb-5">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-xl shadow-indigo-600/30">
+            <img src="/tut-wuri-handayani.svg" alt="SIBER-PM" className="w-10 h-10 object-contain p-1 animate-pulse" />
+          </div>
+          <div className="absolute -inset-1 rounded-2xl bg-indigo-500/20 blur-sm -z-10" />
+        </div>
+        <h2 className="text-white text-base font-bold tracking-tight">Memuat Sistem SIBER-PM...</h2>
+        <p className="text-slate-400 text-xs mt-1.5 max-w-sm">
+          Sistem Informasi Supervisi Akademik &amp; Pembelajaran Mendalam
+        </p>
+        <p className="text-slate-500 text-[11px] mt-1">Dinas Pendidikan, Kepemudaan dan Olahraga Kab. Magetan</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginView />;
