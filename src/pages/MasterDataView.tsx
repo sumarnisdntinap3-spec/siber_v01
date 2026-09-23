@@ -37,6 +37,27 @@ import {
 } from '../constants/teacherData';
 import { School, Teacher, Supervisor, Principal, EducationYear } from '../types';
 
+export const KECAMATAN_MAGETAN = [
+  'Sukomoro',
+  'Magetan',
+  'Maospati',
+  'Panekan',
+  'Plaosan',
+  'Bendo',
+  'Barat',
+  'Karas',
+  'Karangrejo',
+  'Kawedanan',
+  'Lembeyan',
+  'Ngariboyo',
+  'Nguntoronadi',
+  'Parang',
+  'Poncol',
+  'Sidorejo',
+  'Takeran',
+  'Kartoharjo'
+];
+
 interface MasterDataViewProps {
   initialTab?: 'sekolah' | 'guru' | 'pengawas' | 'kepala-sekolah' | 'tahun';
 }
@@ -80,6 +101,15 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
 
+  // Supervisor Modals & State
+  const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
+  const [isSavingSupervisor, setIsSavingSupervisor] = useState(false);
+  const [isDeleteSupervisorModalOpen, setIsDeleteSupervisorModalOpen] = useState(false);
+  const [isDeletingSupervisor, setIsDeletingSupervisor] = useState(false);
+  const [supervisorToDelete, setSupervisorToDelete] = useState<Supervisor | null>(null);
+
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   // Form States
@@ -109,6 +139,23 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
     joinYear: 2024
   });
 
+  const [supervisorForm, setSupervisorForm] = useState<Partial<Supervisor>>({
+    name: '',
+    nip: '',
+    nik: '',
+    email: '',
+    phone: '',
+    gender: 'L',
+    rankGrade: 'Pembina Tingkat I / IV/b',
+    levels: ['SD'],
+    wilayahKecamatan: ['Sukomoro'],
+    assignedSchoolIds: [],
+    skNumber: '',
+    skDate: '',
+    status: 'active',
+    notes: ''
+  });
+
   const [yearForm, setYearForm] = useState<Partial<EducationYear>>({
     name: '2026/2027',
     semester: 'Ganjil',
@@ -120,9 +167,10 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
 
   const loadData = async () => {
     try {
+      const supervisorId = currentRole === 'PENGAWAS' ? currentUser?.id : undefined;
       const results = await Promise.allSettled([
-        api.getSchools(),
-        api.getTeachers(),
+        api.getSchools(supervisorId),
+        api.getTeachers(undefined, supervisorId),
         api.getSupervisors(),
         api.getPrincipals(),
         api.getEducationYears()
@@ -139,7 +187,7 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentRole, currentUser]);
 
   // Save School
   const handleSaveSchool = async (e: React.FormEvent) => {
@@ -235,6 +283,74 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
     }
   };
 
+  // Save Supervisor
+  const handleSaveSupervisor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSavingSupervisor) return;
+    setIsSavingSupervisor(true);
+    try {
+      const selectedSchoolObjs = schools.filter((s) => supervisorForm.assignedSchoolIds?.includes(s.id));
+      const payload: Partial<Supervisor> = {
+        ...supervisorForm,
+        assignedSchoolNames: selectedSchoolObjs.map((s) => s.name)
+      };
+
+      if (selectedItem?.id) {
+        await api.updateSupervisor(selectedItem.id, payload);
+        setUploadNotification(`Data pengawas "${payload.name}" berhasil diperbarui & tersinkronisasi ke Supabase.`);
+      } else {
+        await api.createSupervisor(payload);
+        setUploadNotification(`Pengawas baru "${payload.name}" berhasil didaftarkan & tersinkronisasi ke Supabase.`);
+      }
+      setIsSupervisorModalOpen(false);
+      setSelectedItem(null);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error saving supervisor:', err);
+      setUploadNotification(err?.message || 'Gagal menyimpan data pengawas.');
+    } finally {
+      setIsSavingSupervisor(false);
+    }
+  };
+
+  // Delete Supervisor
+  const handleDeleteSupervisor = async () => {
+    if (!supervisorToDelete?.id || isDeletingSupervisor) return;
+    setIsDeletingSupervisor(true);
+    try {
+      await api.deleteSupervisor(supervisorToDelete.id);
+      setUploadNotification(`Pengawas "${supervisorToDelete.name}" berhasil dihapus.`);
+      setIsDeleteSupervisorModalOpen(false);
+      setSupervisorToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error deleting supervisor:', err);
+      setUploadNotification(err?.message || 'Gagal menghapus pengawas.');
+    } finally {
+      setIsDeletingSupervisor(false);
+    }
+  };
+
+  // Sync All to Supabase
+  const handleSyncAllSupabase = async () => {
+    setIsSyncingSupabase(true);
+    try {
+      const res = await api.syncAllToSupabase();
+      if (res.success) {
+        setUploadNotification(
+          `Database Supabase berhasil disinkronkan (${res.synced?.schools || 0} Sekolah, ${res.synced?.teachers || 0} Guru, ${res.synced?.supervisors || 0} Pengawas).`
+        );
+      } else {
+        setUploadNotification(res.message || 'Sinkronisasi Supabase selesai.');
+      }
+      await loadData();
+    } catch (err: any) {
+      setUploadNotification(`Gagal sinkronisasi Supabase: ${err?.message || err}`);
+    } finally {
+      setIsSyncingSupabase(false);
+    }
+  };
+
   // Save Education Year
   const handleSaveYear = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,17 +417,32 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
           </p>
         </div>
 
-        {/* Sub-tab switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200">
-          <button
-            onClick={() => setActiveSubTab('sekolah')}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-              activeSubTab === 'sekolah' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Sekolah ({schools.length})</span>
-          </button>
+        {/* Supabase status badge & sub-tab switcher */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Supabase: Terkoneksi</span>
+            <button
+              type="button"
+              disabled={isSyncingSupabase}
+              onClick={handleSyncAllSupabase}
+              className="ml-1 px-2 py-0.5 bg-white text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-300 rounded text-[10px] font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+              title="Sinkronkan database lokal ke Supabase PostgreSQL"
+            >
+              {isSyncingSupabase ? 'Menyinkronkan...' : 'Sinkronkan DB'}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setActiveSubTab('sekolah')}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeSubTab === 'sekolah' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Sekolah ({schools.length})</span>
+            </button>
           <button
             onClick={() => setActiveSubTab('guru')}
             className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
@@ -341,6 +472,7 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
           </button>
         </div>
       </div>
+    </div>
 
       {/* 1. TAB SEKOLAH */}
       {activeSubTab === 'sekolah' && (
@@ -735,76 +867,152 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {hasPermission('MANAGE_USERS') && (
+                <button
+                  id="btn-tambah-pengawas"
+                  onClick={() => {
+                    setSelectedItem(null);
+                    setSupervisorForm({
+                      name: '',
+                      nip: '',
+                      nik: '',
+                      email: '',
+                      phone: '',
+                      gender: 'L',
+                      rankGrade: 'Pembina Tingkat I / IV/b',
+                      levels: ['SD'],
+                      wilayahKecamatan: ['Sukomoro'],
+                      assignedSchoolIds: [],
+                      skNumber: '',
+                      skDate: new Date().toISOString().split('T')[0],
+                      status: 'active',
+                      notes: ''
+                    });
+                    setIsSupervisorModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Pengawas</span>
+                </button>
+              )}
               <ExportButton data={supervisors} fileName="data_pengawas_sekolah" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {supervisors.map((sp) => (
-              <div key={sp.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                <div className="flex items-start justify-between">
+              <div key={sp.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{sp.name}</h4>
+                      <p className="text-xs text-slate-500 font-mono">NIP: {sp.nip}</p>
+                      <p className="text-xs text-slate-500">{sp.email} • {sp.phone}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Aktif
+                    </span>
+                  </div>
+
+                  {/* Jenjang */}
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">{sp.name}</h4>
-                    <p className="text-xs text-slate-500 font-mono">NIP: {sp.nip}</p>
-                    <p className="text-xs text-slate-500">{sp.email} • {sp.phone}</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Aktif
-                  </span>
-                </div>
-
-                {/* Jenjang */}
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Jenjang Binaan:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {sp.levels?.map((lvl) => (
-                      <span
-                        key={lvl}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          lvl === 'TK'
-                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                            : lvl === 'SD'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}
-                      >
-                        Jenjang {lvl}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Wilayah Kecamatan */}
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Wilayah Kecamatan (Magetan):</p>
-                  <div className="flex flex-wrap gap-1">
-                    {sp.wilayahKecamatan?.map((kec) => (
-                      <span
-                        key={kec}
-                        className="px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200 text-[10px] font-medium"
-                      >
-                        Kec. {kec}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200">
-                  <p className="text-xs font-bold text-slate-700 mb-1.5">Satuan Pendidikan Binaan:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {sp.assignedSchoolNames && sp.assignedSchoolNames.length > 0 ? (
-                      sp.assignedSchoolNames.map((schName, i) => (
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Jenjang Binaan:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {sp.levels?.map((lvl) => (
                         <span
-                          key={i}
-                          className="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-medium"
+                          key={lvl}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            lvl === 'TK'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : lvl === 'SD'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
                         >
-                          {schName}
+                          Jenjang {lvl}
                         </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400 italic">Belum ada sekolah khusus</span>
-                    )}
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Wilayah Kecamatan */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Wilayah Kecamatan (Magetan):</p>
+                    <div className="flex flex-wrap gap-1">
+                      {sp.wilayahKecamatan?.map((kec) => (
+                        <span
+                          key={kec}
+                          className="px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200 text-[10px] font-medium"
+                        >
+                          Kec. {kec}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-700 mb-1.5">
+                      Satuan Pendidikan Binaan ({sp.assignedSchoolIds?.length || 0}):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sp.assignedSchoolNames && sp.assignedSchoolNames.length > 0 ? (
+                        sp.assignedSchoolNames.map((schName, i) => (
+                          <span
+                            key={i}
+                            className="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-medium"
+                          >
+                            {schName}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Belum ada sekolah binaan</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {hasPermission('MANAGE_USERS') && (
+                    <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                      <button
+                        onClick={() => {
+                          setSelectedItem(sp);
+                          setSupervisorForm({
+                            name: sp.name || '',
+                            nip: sp.nip || '',
+                            nik: sp.nik || '',
+                            email: sp.email || '',
+                            phone: sp.phone || '',
+                            gender: sp.gender || 'L',
+                            rankGrade: sp.rankGrade || 'Pembina Tingkat I / IV/b',
+                            levels: sp.levels || ['SD'],
+                            wilayahKecamatan: sp.wilayahKecamatan || ['Sukomoro'],
+                            assignedSchoolIds: sp.assignedSchoolIds || [],
+                            skNumber: sp.skNumber || '',
+                            skDate: sp.skDate || '',
+                            status: sp.status || 'active',
+                            notes: sp.notes || ''
+                          });
+                          setIsSupervisorModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Edit Data Pengawas"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSupervisorToDelete(sp);
+                          setIsDeleteSupervisorModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        title="Hapus Pengawas"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1235,7 +1443,7 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
                 <option value="PNS">PNS</option>
                 <option value="PPPK">PPPK</option>
                 <option value="GTT">GTT</option>
-                <option value="Honor">Honor Sekolah</option>
+                <option value="Honor Daerah">Honor Daerah / Sekolah</option>
               </select>
             </div>
             <div>
@@ -1609,6 +1817,381 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({ initialTab = 'se
           }, 8000);
         }}
       />
+
+      {/* MODAL TAMBAH / EDIT PENGAWAS SEKOLAH */}
+      <Modal
+        isOpen={isSupervisorModalOpen}
+        onClose={() => {
+          if (!isSavingSupervisor) {
+            setIsSupervisorModalOpen(false);
+            setSelectedItem(null);
+          }
+        }}
+        title={selectedItem?.id ? 'Edit Data Pengawas Sekolah' : 'Tambah Pengawas Sekolah Baru'}
+        id="modal-supervisor"
+      >
+        <form onSubmit={handleSaveSupervisor} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nama Lengkap &amp; Gelar *
+              </label>
+              <input
+                type="text"
+                required
+                value={supervisorForm.name || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, name: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-medium"
+                placeholder="Contoh: Drs. Bambang Hidayat, M.Pd."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                NIP (Nomor Induk Pegawai) *
+              </label>
+              <input
+                type="text"
+                required
+                value={supervisorForm.nip || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, nip: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+                placeholder="196805121993031004"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                NIK (Kependudukan)
+              </label>
+              <input
+                type="text"
+                value={supervisorForm.nik || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, nik: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono"
+                placeholder="3520011205680001"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Jenis Kelamin
+              </label>
+              <select
+                value={supervisorForm.gender || 'L'}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, gender: e.target.value as 'L' | 'P' })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+              >
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Pangkat / Golongan
+              </label>
+              <input
+                type="text"
+                value={supervisorForm.rankGrade || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, rankGrade: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="Pembina Utama Muda / IV/c"
+              />
+            </div>
+          </div>
+
+          {/* Jenjang Binaan */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="block text-xs font-bold text-slate-800">
+              Jenjang Satuan Pendidikan Binaan *
+            </label>
+            <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-700">
+              {['TK', 'SD', 'SMP'].map((lvl) => {
+                const currentLevels = supervisorForm.levels || [];
+                const isChecked = currentLevels.includes(lvl);
+                return (
+                  <label key={lvl} className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            levels: [...currentLevels, lvl]
+                          });
+                        } else {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            levels: currentLevels.filter((l) => l !== lvl)
+                          });
+                        }
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Jenjang {lvl}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Wilayah Kecamatan */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="block text-xs font-bold text-slate-800">
+              Wilayah Kecamatan Binaan (Kabupaten Magetan)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-slate-700 max-h-36 overflow-y-auto pr-1">
+              {KECAMATAN_MAGETAN.map((kec) => {
+                const currentKecs = supervisorForm.wilayahKecamatan || [];
+                const isChecked = currentKecs.includes(kec);
+                return (
+                  <label key={kec} className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            wilayahKecamatan: [...currentKecs, kec]
+                          });
+                        } else {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            wilayahKecamatan: currentKecs.filter((k) => k !== kec)
+                          });
+                        }
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Kec. {kec}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sekolah Binaan */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-800">
+                Pilih Sekolah Binaan ({supervisorForm.assignedSchoolIds?.length || 0} dipilih)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const filtered = schools
+                    .filter((s) => (supervisorForm.wilayahKecamatan || []).includes(s.subDistrict))
+                    .map((s) => s.id);
+                  setSupervisorForm({
+                    ...supervisorForm,
+                    assignedSchoolIds: filtered.length > 0 ? filtered : schools.slice(0, 5).map((s) => s.id)
+                  });
+                }}
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold"
+              >
+                Pilih Sesuai Wilayah
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto text-xs pr-1">
+              {schools.map((sch) => {
+                const assignedIds = supervisorForm.assignedSchoolIds || [];
+                const isSelected = assignedIds.includes(sch.id);
+                return (
+                  <label
+                    key={sch.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-medium'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            assignedSchoolIds: [...assignedIds, sch.id]
+                          });
+                        } else {
+                          setSupervisorForm({
+                            ...supervisorForm,
+                            assignedSchoolIds: assignedIds.filter((id) => id !== sch.id)
+                          });
+                        }
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div className="truncate">
+                      <span className="font-semibold block truncate">{sch.name}</span>
+                      <span className="text-[10px] text-slate-500">Kec. {sch.subDistrict}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Kontak & SK */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Email Resmi Pengawas *
+              </label>
+              <input
+                type="email"
+                required
+                value={supervisorForm.email || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, email: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="pengawas.sd@magetan.go.id"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nomor WhatsApp / HP
+              </label>
+              <input
+                type="text"
+                value={supervisorForm.phone || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, phone: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="081234567890"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nomor SK Penugasan
+              </label>
+              <input
+                type="text"
+                value={supervisorForm.skNumber || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, skNumber: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="800/215/403.101/2026"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tanggal SK Penugasan
+              </label>
+              <input
+                type="date"
+                value={supervisorForm.skDate || ''}
+                onChange={(e) => setSupervisorForm({ ...supervisorForm, skDate: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+            <span className="text-[11px] text-slate-500">
+              Data akan otomatis disinkronkan ke database Supabase
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={isSavingSupervisor}
+                onClick={() => {
+                  setIsSupervisorModalOpen(false);
+                  setSelectedItem(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                id="btn-submit-supervisor"
+                disabled={isSavingSupervisor}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{isSavingSupervisor ? 'Menyimpan & Sinkronisasi...' : 'Simpan Data Pengawas'}</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL HAPUS PENGAWAS */}
+      <Modal
+        isOpen={isDeleteSupervisorModalOpen}
+        onClose={() => {
+          if (!isDeletingSupervisor) {
+            setIsDeleteSupervisorModalOpen(false);
+            setSupervisorToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Pengawas Sekolah"
+        id="modal-delete-supervisor"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-rose-900">Perhatian: Tindakan ini permanen!</p>
+              <p className="text-rose-700 leading-relaxed">
+                Menghapus data pengawas akan menghapus profil dari sistem dan melepaskan penugasan sekolah binaan terkait.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-200/60">
+              <span className="text-slate-500">Nama Pengawas:</span>
+              <span className="font-bold text-slate-900">{supervisorToDelete?.name}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-200/60">
+              <span className="text-slate-500">NIP:</span>
+              <span className="font-mono font-semibold text-slate-800">{supervisorToDelete?.nip}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-200/60">
+              <span className="text-slate-500">Jenjang Binaan:</span>
+              <span className="font-medium text-slate-800">{supervisorToDelete?.levels?.join(', ')}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Wilayah Binaan:</span>
+              <span className="font-medium text-slate-800">{supervisorToDelete?.wilayahKecamatan?.join(', ')}</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-600">
+            Apakah Anda yakin ingin menghapus data pengawas <strong className="text-slate-900">{supervisorToDelete?.name}</strong>?
+          </p>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={isDeletingSupervisor}
+              onClick={() => {
+                setIsDeleteSupervisorModalOpen(false);
+                setSupervisorToDelete(null);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              id="btn-confirm-delete-supervisor"
+              disabled={isDeletingSupervisor}
+              onClick={handleDeleteSupervisor}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{isDeletingSupervisor ? 'Menghapus...' : 'Ya, Hapus Pengawas'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -431,6 +431,24 @@ export interface SupervisionRequest {
   score?: number;
   completionNotes?: string;
   feedback?: string;
+  supervisorFeedback?: SupervisorFeedback;
+  teacherResponse?: TeacherFeedbackResponse;
+}
+
+export interface SupervisorFeedback {
+  strengths?: string;
+  improvements?: string;
+  actionPlan?: string;
+  generalNotes?: string;
+  category?: 'Amat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan' | string;
+  submittedAt?: string;
+  supervisorName?: string;
+  supervisorNip?: string;
+}
+
+export interface TeacherFeedbackResponse {
+  notes?: string;
+  submittedAt?: string;
 }
 
 export interface NotificationItem {

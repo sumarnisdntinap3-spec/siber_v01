@@ -20,7 +20,8 @@ import {
   Shield,
   Palette,
   TrendingUp,
-  Printer
+  Printer,
+  MessageSquareQuote
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeColorKey } from '../../types';
@@ -39,6 +40,8 @@ export type NavigationTab =
   | 'pola-pikir'
   | 'pembelajaran-mendalam'
   | 'supervisi'
+  | 'komentar-supervisi'
+  | 'catatan-supervisi'
   | 'kalender'
   | 'laporan'
   | 'cetak-laporan'
@@ -300,6 +303,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Monitoring Supervisi</span>
             </button>
             <button
+              id="sidebar-nav-dinas-komentar"
+              onClick={() => handleNavClick('komentar-supervisi')}
+              className={navItemClass('komentar-supervisi')}
+            >
+              <MessageSquareQuote className={iconClass('komentar-supervisi')} />
+              <span>Catatan Masukan Supervisi</span>
+            </button>
+            <button
               onClick={() => handleNavClick('kalender')}
               className={navItemClass('kalender')}
             >
@@ -400,6 +411,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <CheckCircle2 className={iconClass('supervisi')} />
               <span>Persetujuan Jadwal Supervisi</span>
+            </button>
+            <button
+              id="sidebar-nav-pengawas-komentar"
+              onClick={() => handleNavClick('komentar-supervisi')}
+              className={navItemClass('komentar-supervisi')}
+            >
+              <MessageSquareQuote className={iconClass('komentar-supervisi')} />
+              <span>Entri Komentar Supervisi</span>
             </button>
             <button
               onClick={() => handleNavClick('kalender')}
@@ -537,6 +556,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Kalender Supervisi</span>
             </button>
             <button
+              id="sidebar-nav-ks-komentar"
+              onClick={() => handleNavClick('komentar-supervisi')}
+              className={navItemClass('komentar-supervisi')}
+            >
+              <MessageSquareQuote className={iconClass('komentar-supervisi')} />
+              <span>Catatan Masukan Pengawas</span>
+            </button>
+            <button
               id="sidebar-nav-ks-cetak-laporan"
               onClick={() => handleNavClick('cetak-laporan')}
               className={navItemClass('cetak-laporan')}
@@ -624,6 +651,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <CalendarDays className={iconClass('kalender')} />
               <span>Jadwal Supervisi Saya</span>
+            </button>
+            <button
+              id="sidebar-nav-guru-catatan"
+              onClick={() => handleNavClick('catatan-supervisi')}
+              className={navItemClass('catatan-supervisi')}
+            >
+              <MessageSquareQuote className={iconClass('catatan-supervisi')} />
+              <span>Catatan Masukan Pengawas</span>
             </button>
           </>
         );

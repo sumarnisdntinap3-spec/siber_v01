@@ -22,6 +22,7 @@ import { PengaturanAplikasiView } from './pages/PengaturanAplikasiView';
 import { TampilanTemplateView } from './pages/TampilanTemplateView';
 import { PengawasSekolahView } from './pages/PengawasSekolahView';
 import { DashboardKinerjaGuruView } from './pages/DashboardKinerjaGuruView';
+import { KomentarSupervisiView } from './pages/KomentarSupervisiView';
 import { LoginView } from './pages/LoginView';
 
 const AccessDeniedView: React.FC<{ onBackToDashboard: () => void }> = ({ onBackToDashboard }) => (
@@ -66,7 +67,10 @@ const MainLayout: React.FC = () => {
         'administrasi',
         'pola-pikir',
         'pembelajaran-mendalam',
-        'kalender'
+        'kalender',
+        'catatan-supervisi',
+        'komentar-supervisi',
+        'hasil-supervisi'
       ];
       return allowedGuruTabs.includes(tab);
     }
@@ -84,6 +88,9 @@ const MainLayout: React.FC = () => {
         'pola-pikir',
         'pembelajaran-mendalam',
         'supervisi',
+        'komentar-supervisi',
+        'catatan-supervisi',
+        'hasil-supervisi',
         'kalender',
         'laporan',
         'cetak-laporan',
@@ -104,6 +111,9 @@ const MainLayout: React.FC = () => {
         'master-sekolah',
         'master-guru',
         'supervisi',
+        'komentar-supervisi',
+        'catatan-supervisi',
+        'hasil-supervisi',
         'kalender',
         'modul-ajar',
         'administrasi',
@@ -186,6 +196,10 @@ const MainLayout: React.FC = () => {
         return <PembelajaranMendalamView />;
       case 'supervisi':
         return <SupervisiView />;
+      case 'komentar-supervisi':
+      case 'catatan-supervisi':
+      case 'hasil-supervisi':
+        return <KomentarSupervisiView />;
       case 'kalender':
         return <KalenderSupervisiView />;
       case 'cetak-laporan':

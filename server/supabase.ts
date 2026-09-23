@@ -51,7 +51,7 @@ export async function syncUserToSupabase(user: any): Promise<boolean> {
       name: user.name || 'Pengguna',
       username: user.username || user.email || user.id,
       email: user.email || null,
-      role: user.role || 'GURU',
+      role: ['ADMIN_DINAS', 'PENGAWAS', 'KEPALA_SEKOLAH', 'GURU'].includes(user.role) ? user.role : 'GURU',
       password: user.password || null,
       school_id: user.schoolId || null,
       school_name: user.schoolName || null,
@@ -62,6 +62,14 @@ export async function syncUserToSupabase(user: any): Promise<boolean> {
 
     const { error } = await supabaseServer.from('users').upsert(payload, { onConflict: 'id' });
     if (error) {
+      // If unique constraint on nip is violated, update existing user with this NIP
+      if (error.code === '23505') {
+        const updateRes = await supabaseServer.from('users').update(payload).eq('nip', cleanNip);
+        if (!updateRes.error) {
+          console.log(`✅ Updated existing user by NIP "${cleanNip}" in Supabase`);
+          return true;
+        }
+      }
       console.warn(`⚠️ Supabase syncUser error (${user.name}):`, error.message);
       return false;
     }
@@ -92,13 +100,14 @@ export async function syncSchoolToSupabase(school: any): Promise<boolean> {
   if (!school || !school.id) return false;
   try {
     const cleanNpsn = school.npsn ? String(school.npsn).trim() : `NPSN-${school.id.replace(/\D/g, '') || Date.now()}`;
+    const cleanSubDistrict = school.subDistrict || school.subdistrict || 'Sukomoro';
     const payload = {
       id: school.id,
       npsn: cleanNpsn,
       name: school.name || 'Satuan Pendidikan',
       level: ['TK', 'SD', 'SMP', 'SMA', 'SMK'].includes(school.level) ? school.level : 'SD',
       address: school.address || '',
-      sub_district: school.subDistrict || school.subdistrict || 'Sukomoro',
+      sub_district: cleanSubDistrict,
       city: school.city || 'Kabupaten Magetan',
       principal_name: school.principalName || school.principal_name || '-',
       supervisor_id: school.supervisorId || school.supervisor_id || null,
@@ -112,6 +121,14 @@ export async function syncSchoolToSupabase(school: any): Promise<boolean> {
 
     const { error } = await supabaseServer.from('schools').upsert(payload, { onConflict: 'id' });
     if (error) {
+      // If unique constraint on NPSN is violated (same school created under different ID), update by NPSN
+      if (error.code === '23505') {
+        const updateRes = await supabaseServer.from('schools').update(payload).eq('npsn', cleanNpsn);
+        if (!updateRes.error) {
+          console.log(`✅ Synced school "${school.name}" to Supabase (updated existing NPSN ${cleanNpsn})`);
+          return true;
+        }
+      }
       console.warn(`⚠️ Supabase syncSchool error (${school.name}):`, error.message);
       return false;
     }
@@ -149,17 +166,44 @@ export async function syncTeacherToSupabase(teacher: any, user?: any): Promise<b
   if (!teacher || !teacher.id) return false;
   try {
     // 1. If user object is provided, ensure user is synced to 'users' table first
+    let validUserId: string | null = null;
     if (user) {
-      await syncUserToSupabase(user);
+      const userSynced = await syncUserToSupabase(user);
+      if (userSynced) {
+        validUserId = user.id;
+      }
+    } else if (teacher.userId) {
+      // Verify user exists in Supabase
+      const { data: usrData } = await supabaseServer.from('users').select('id').eq('id', teacher.userId).maybeSingle();
+      if (usrData) {
+        validUserId = usrData.id;
+      }
+    }
+
+    // 2. Verify school foreign key in Supabase
+    let validSchoolId: string | null = null;
+    if (teacher.schoolId) {
+      const { data: schData } = await supabaseServer.from('schools').select('id').eq('id', teacher.schoolId).maybeSingle();
+      if (schData) {
+        validSchoolId = schData.id;
+      }
     }
 
     const cleanNip = teacher.nip && teacher.nip !== '-' ? String(teacher.nip).trim() : null;
     const gender = teacher.gender === 'P' || teacher.gender === 'Perempuan' ? 'P' : 'L';
     const teacherType = teacher.teacherType === 'Guru Mapel' ? 'Guru Mapel' : 'Guru Kelas';
 
+    // Normalize employment status to comply with CHECK (employment_status IN ('PNS', 'PPPK', 'GTT', 'Honor Daerah'))
+    let cleanEmployment = 'PNS';
+    const emp = (teacher.employmentStatus || '').toUpperCase();
+    if (emp.includes('PPPK')) cleanEmployment = 'PPPK';
+    else if (emp.includes('GTT')) cleanEmployment = 'GTT';
+    else if (emp.includes('HONOR') || emp.includes('NON ASN') || emp.includes('GTY')) cleanEmployment = 'Honor Daerah';
+    else cleanEmployment = 'PNS';
+
     const payload = {
       id: teacher.id,
-      user_id: teacher.userId || user?.id || null,
+      user_id: validUserId,
       nip: cleanNip,
       nik: teacher.nik ? String(teacher.nik) : null,
       nuptk: teacher.nuptk ? String(teacher.nuptk) : null,
@@ -170,10 +214,10 @@ export async function syncTeacherToSupabase(teacher: any, user?: any): Promise<b
       class_grade: teacher.classGrade || null,
       rank_grade: teacher.rankGrade || 'Penata Muda / III/a',
       position: teacher.position || 'Guru Ahli Pertama',
-      employment_status: teacher.employmentStatus || 'PNS',
+      employment_status: cleanEmployment,
       email: teacher.email || null,
       phone: teacher.phone || null,
-      school_id: teacher.schoolId || null,
+      school_id: validSchoolId,
       school_name: teacher.schoolName || '-',
       join_year: Number(teacher.joinYear) || new Date().getFullYear(),
       status: teacher.status === 'active' || teacher.status === 'Aktif' ? 'Aktif' : 'Nonaktif',
@@ -198,6 +242,14 @@ export async function syncTeacherToSupabase(teacher: any, user?: any): Promise<b
         const retryResult = await supabaseServer.from('teachers').upsert(detachedPayload, { onConflict: 'id' });
         if (!retryResult.error) {
           console.log(`✅ Synced teacher "${teacher.name}" to Supabase (detached FK fallback)`);
+          return true;
+        }
+      }
+      // If unique constraint on nip is violated, update existing record with this NIP
+      if (error.code === '23505' && cleanNip) {
+        const updateRes = await supabaseServer.from('teachers').update(payload).eq('nip', cleanNip);
+        if (!updateRes.error) {
+          console.log(`✅ Synced teacher "${teacher.name}" to Supabase (updated existing NIP ${cleanNip})`);
           return true;
         }
       }
@@ -241,8 +293,17 @@ export async function syncSupervisorToSupabase(supervisor: any, user?: any): Pro
   if (!supervisor || !supervisor.id) return false;
   try {
     // 1. If user object is provided, ensure user is synced to 'users' table first
+    let validUserId: string | null = null;
     if (user) {
-      await syncUserToSupabase(user);
+      const userSynced = await syncUserToSupabase(user);
+      if (userSynced) {
+        validUserId = user.id;
+      }
+    } else if (supervisor.userId) {
+      const { data: usrData } = await supabaseServer.from('users').select('id').eq('id', supervisor.userId).maybeSingle();
+      if (usrData) {
+        validUserId = usrData.id;
+      }
     }
 
     const cleanNip = supervisor.nip ? String(supervisor.nip).trim() : `SP-${supervisor.id}`;
@@ -270,7 +331,7 @@ export async function syncSupervisorToSupabase(supervisor: any, user?: any): Pro
 
     const payload = {
       id: supervisor.id,
-      user_id: supervisor.userId || user?.id || null,
+      user_id: validUserId,
       nip: cleanNip,
       nik: supervisor.nik ? String(supervisor.nik) : null,
       name: supervisor.name || 'Pengawas Sekolah',
@@ -298,6 +359,14 @@ export async function syncSupervisorToSupabase(supervisor: any, user?: any): Pro
         const retryResult = await supabaseServer.from('supervisors').upsert({ ...payload, user_id: null }, { onConflict: 'id' });
         if (!retryResult.error) {
           console.log(`✅ Synced supervisor "${supervisor.name}" to Supabase (detached user_id fallback)`);
+          return true;
+        }
+      }
+      // If unique constraint on nip is violated, update existing record with this NIP
+      if (error.code === '23505' && cleanNip) {
+        const updateRes = await supabaseServer.from('supervisors').update(payload).eq('nip', cleanNip);
+        if (!updateRes.error) {
+          console.log(`✅ Synced supervisor "${supervisor.name}" to Supabase (updated existing NIP ${cleanNip})`);
           return true;
         }
       }

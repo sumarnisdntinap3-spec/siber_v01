@@ -89,17 +89,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           ? currentUser?.schoolId || ''
           : selectedSchoolId;
 
+      const supervisorFilter = currentRole === 'PENGAWAS' ? currentUser?.id : undefined;
+
       const [statsData, schoolsList, teachersList, modulesList, supervisionsList] =
         await Promise.all([
           api.getDashboardStats({
             role: currentRole || undefined,
             schoolId: schoolFilter || undefined,
-            supervisorId: currentRole === 'PENGAWAS' ? currentUser?.id : undefined
+            supervisorId: supervisorFilter
           }),
-          api.getSchools(),
-          api.getTeachers(schoolFilter || undefined),
+          api.getSchools(supervisorFilter),
+          api.getTeachers(schoolFilter || undefined, supervisorFilter),
           api.getLearningModules({ schoolId: schoolFilter || undefined }),
-          api.getSupervisionRequests({ schoolId: schoolFilter || undefined })
+          api.getSupervisionRequests({ schoolId: schoolFilter || undefined, supervisorId: supervisorFilter })
         ]);
 
       setStats(statsData);
@@ -462,37 +464,121 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Supervisor Feedback Callout Card */}
-          <div className="mt-5 p-4 sm:p-5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-700 mt-0.5">
-                <MessageSquareQuote className="w-5 h-5" />
+          {/* Supervisor Feedback & Record Callout Card */}
+          <div className="mt-5 p-5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 border border-indigo-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-indigo-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-xs">
+                  <MessageSquareQuote className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded border border-indigo-200">
+                      Record Hasil &amp; Masukan Resmi Pengawas
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      Tatap Muka {activeSupervision?.approvedDate || activeSupervision?.proposedDate1 || 'Periode Berjalan'}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 mt-0.5">
+                    Evaluasi &amp; Umpan Balik Supervisi Akademik Guru
+                  </h3>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                  Catatan & Rekomendasi Resmi Pengawas Pembina
-                </span>
-                <p className="text-xs text-slate-700 font-medium italic mt-2 leading-relaxed">
-                  "{activeSupervision?.completionNotes || activeSupervision?.supervisorNotes || teacherProfile?.adminSupervisorNotes || 'Pelaksanaan proses pembelajaran berbasis siswa (student-centered learning) berjalan sangat aktif dan kondusif. Penerapan diferensiasi proses, media ajar kontekstual, dan asesmen formatif terkelola dengan sangat baik.'}"
+
+              <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Skor Observasi</div>
+                  <div className="text-base font-bold text-emerald-600">
+                    {activeSupervision?.completionScore || activeSupervision?.score || 92} / 100
+                  </div>
+                </div>
+                <button
+                  onClick={() => onNavigate('komentar-supervisi')}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Buka Menu Umpan Balik</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Structured Feedback Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+              {/* Praktik Baik / Kelebihan */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Kekuatan &amp; Praktik Baik</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-[11px]">
+                  {(() => {
+                    if (activeSupervision?.feedback) {
+                      try {
+                        const parsed = JSON.parse(activeSupervision.feedback);
+                        if (parsed.strengths) return parsed.strengths;
+                      } catch {
+                        // Not JSON, treat as text
+                      }
+                    }
+                    return 'Penerapan apersepsi bermakna, media pembelajaran interaktif berbasis kearifan lokal Magetan, dan pelibatan murid secara aktif (mindful learning) berjalan sangat optimal.';
+                  })()}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-2 font-semibold">
-                  Evaluator: {activeSupervision?.supervisorName || teacherProfile?.adminSupervisorEvaluatorName || 'Drs. Bambang Hidayat, M.Pd.'} (Pengawas Sekolah Pembina Kab. Magetan)
+              </div>
+
+              {/* Rekomendasi / Saran Masukan */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Saran &amp; Masukan Perbaikan</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-[11px]">
+                  {(() => {
+                    if (activeSupervision?.feedback) {
+                      try {
+                        const parsed = JSON.parse(activeSupervision.feedback);
+                        if (parsed.improvements) return parsed.improvements;
+                      } catch {}
+                    }
+                    return 'Perlu memperkuat diferensiasi produk hasil asesmen formatif sesuai gaya belajar siswa dan menyertakan rubrik observasi sikap mandiri murid.';
+                  })()}
+                </p>
+              </div>
+
+              {/* Rencana Tindak Lanjut */}
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                  <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Rencana Tindak Lanjut</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-[11px]">
+                  {(() => {
+                    if (activeSupervision?.feedback) {
+                      try {
+                        const parsed = JSON.parse(activeSupervision.feedback);
+                        if (parsed.actionPlan) return parsed.actionPlan;
+                      } catch {}
+                    }
+                    return 'Mengikuti kegiatan KKG tingkat gugus/kecamatan untuk pemantapan asesmen diagnostik dan mengunggah revisi rubrik pada modul ajar.';
+                  })()}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-              <div className="text-right">
-                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Predikat Kinerja</div>
-                <div className="text-sm font-bold text-emerald-600">SANGAT BAIK</div>
+            {/* General Supervisor Note & Evaluator Sign */}
+            <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-2 text-slate-600 italic">
+                <span className="font-semibold text-slate-800 not-italic shrink-0">Catatan Pembina:</span>
+                <span>
+                  "{activeSupervision?.completionNotes || activeSupervision?.supervisorNotes || teacherProfile?.adminSupervisorNotes || 'Terus pertahankan semangat inovasi pembelajaran mendalam yang menggembirakan peserta didik.'}"
+                </span>
               </div>
-              <button
-                onClick={() => onNavigate('kinerja-guru')}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <span>Lihat Detail Rapor</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="shrink-0 text-right sm:border-l sm:border-slate-200 sm:pl-4">
+                <span className="text-[11px] font-bold text-indigo-700 block">
+                  {activeSupervision?.supervisorName || teacherProfile?.supervisorName || 'Drs. H. Bambang Sutrisno, M.Pd.'}
+                </span>
+                <span className="text-[10px] text-slate-500">Pengawas Sekolah Binaan</span>
+              </div>
             </div>
           </div>
         </div>
@@ -585,68 +671,110 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               </div>
 
               <div className="space-y-4 mt-4 text-xs">
-                {/* Strengths */}
-                <div>
-                  <span className="font-bold text-emerald-700 flex items-center gap-1.5 mb-2">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Praktik Baik & Keunggulan Guru:
-                  </span>
-                  <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
-                    {teacherPerformance?.strengthHighlights?.slice(0, 2).map((st, i) => (
-                      <li key={i}>{st}</li>
-                    )) || (
-                      <>
-                        <li>Kelengkapan modul ajar dan Alur Tujuan Pembelajaran (ATP) mencapai skor unggul.</li>
-                        <li>Suasana kelas menyenangkan (Joyful Learning) dan manajemen waktu terkelola dengan baik.</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+                {/* Real feedback from supervisor if available */}
+                {activeSupervision?.supervisorFeedback?.strengths ? (
+                  <div>
+                    <span className="font-bold text-emerald-700 flex items-center gap-1.5 mb-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Praktik Baik yang Diapresiasi Pengawas:
+                    </span>
+                    <p className="text-slate-700 bg-emerald-50/60 p-2.5 rounded-lg border border-emerald-100 leading-relaxed">
+                      {activeSupervision.supervisorFeedback.strengths}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="font-bold text-emerald-700 flex items-center gap-1.5 mb-2">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Praktik Baik & Keunggulan Guru:
+                    </span>
+                    <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
+                      {teacherPerformance?.strengthHighlights?.slice(0, 2).map((st, i) => (
+                        <li key={i}>{st}</li>
+                      )) || (
+                        <>
+                          <li>Kelengkapan modul ajar dan Alur Tujuan Pembelajaran (ATP) mencapai skor unggul.</li>
+                          <li>Suasana kelas menyenangkan (Joyful Learning) dan manajemen waktu terkelola dengan baik.</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                )}
 
-                {/* Improvement areas */}
-                <div>
-                  <span className="font-bold text-amber-700 flex items-center gap-1.5 mb-2">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    Area Penguatan & Pengembangan Diri:
-                  </span>
-                  <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
-                    {teacherPerformance?.improvementAreas?.slice(0, 2).map((ia, i) => (
-                      <li key={i}>{ia}</li>
-                    )) || (
-                      <>
-                        <li>Pemanfaatan instrumen asesmen diagnostik awal non-kognitif untuk pemetaan gaya belajar siswa.</li>
-                        <li>Pengayaan materi berbasis studi kasus nyata di lingkungan sekitar Kab. Magetan.</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+                {activeSupervision?.supervisorFeedback?.improvements ? (
+                  <div>
+                    <span className="font-bold text-amber-700 flex items-center gap-1.5 mb-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      Saran Masukan & Catatan Pengawas:
+                    </span>
+                    <p className="text-slate-700 bg-amber-50/60 p-2.5 rounded-lg border border-amber-100 leading-relaxed">
+                      {activeSupervision.supervisorFeedback.improvements}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="font-bold text-amber-700 flex items-center gap-1.5 mb-2">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Area Penguatan & Pengembangan Diri:
+                    </span>
+                    <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
+                      {teacherPerformance?.improvementAreas?.slice(0, 2).map((ia, i) => (
+                        <li key={i}>{ia}</li>
+                      )) || (
+                        <>
+                          <li>Pemanfaatan instrumen asesmen diagnostik awal non-kognitif untuk pemetaan gaya belajar siswa.</li>
+                          <li>Pengayaan materi berbasis studi kasus nyata di lingkungan sekitar Kab. Magetan.</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                )}
 
-                {/* Recommendations */}
-                <div>
-                  <span className="font-bold text-indigo-700 flex items-center gap-1.5 mb-2">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Rekomendasi Tindak Lanjut:
-                  </span>
-                  <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
-                    {teacherPerformance?.summaryRecommendations?.slice(0, 2).map((rc, i) => (
-                      <li key={i}>{rc}</li>
-                    )) || (
-                      <>
-                        <li>Berbagi praktik baik modul ajar inspiratif di Komunitas Belajar (Kombel) sekolah.</li>
-                        <li>Mempertahankan tren peningkatan kualitas proses supervisi akademik secara berkelanjutan.</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+                {activeSupervision?.supervisorFeedback?.actionPlan ? (
+                  <div>
+                    <span className="font-bold text-indigo-700 flex items-center gap-1.5 mb-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      Rencana Tindak Lanjut dari Pengawas:
+                    </span>
+                    <p className="text-slate-700 bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-100 leading-relaxed">
+                      {activeSupervision.supervisorFeedback.actionPlan}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="font-bold text-indigo-700 flex items-center gap-1.5 mb-2">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Rekomendasi Tindak Lanjut:
+                    </span>
+                    <ul className="space-y-1.5 pl-5 list-disc text-slate-600 leading-relaxed">
+                      {teacherPerformance?.summaryRecommendations?.slice(0, 2).map((rc, i) => (
+                        <li key={i}>{rc}</li>
+                      )) || (
+                        <>
+                          <li>Berbagi praktik baik modul ajar inspiratif di Komunitas Belajar (Kombel) sekolah.</li>
+                          <li>Mempertahankan tren peningkatan kualitas proses supervisi akademik secara berkelanjutan.</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
 
-            <button
-              onClick={() => onNavigate('kinerja-guru')}
-              className="w-full mt-4 py-2 px-3 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-lg transition-colors text-center cursor-pointer"
-            >
-              Lihat Analisis Rapor Kinerja Lengkap
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => onNavigate('catatan-supervisi')}
+                className="w-full py-2 px-3 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors text-center cursor-pointer shadow-2xs"
+              >
+                Buka Record Catatan &amp; Saran Pengawas
+              </button>
+              <button
+                onClick={() => onNavigate('kinerja-guru')}
+                className="w-full py-2 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors text-center cursor-pointer"
+              >
+                Rapor Kinerja
+              </button>
+            </div>
           </div>
         </div>
 
@@ -945,6 +1073,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Pengawas Action Banner for Supervisi Comments */}
+      {currentRole === 'PENGAWAS' && (
+        <div className="bg-linear-to-r from-indigo-500/10 via-indigo-500/5 to-transparent border border-indigo-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-lg shrink-0">
+              <MessageSquareQuote className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900">Entri Komentar &amp; Rekomendasi Hasil Supervisi</h4>
+              <p className="text-xs text-slate-500">Berikan catatan apresiasi, area penguatan, dan rencana tindak lanjut untuk guru binaan yang telah diobservasi.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('komentar-supervisi')}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors shrink-0 cursor-pointer text-center"
+          >
+            Buka Form Entri Komentar
+          </button>
         </div>
       )}
 

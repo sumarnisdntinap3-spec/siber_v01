@@ -1183,7 +1183,7 @@ export class DatabaseStore {
         location: 'Ruang Kelas 4A SDN Tinap 3',
         notes: 'Fokus supervisi pada observasi integrasi Pembelajaran Berkesadaran dan diferensiasi konten.',
         supportingDocName: 'Modul_Ajar_IPAS_FaseB_Sumarni.pdf',
-        status: 'DISETUJUI',
+        status: 'SELESAI',
         supervisorId: 'sp-1',
         supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
         supervisorNotes: 'Jadwal disetujui pada alternatif 1. Dokumen modul ajar sudah saya pelajari dan sangat baik.',
@@ -1191,7 +1191,26 @@ export class DatabaseStore {
         createdByName: 'Hj. Sri Wahyuni, M.Pd.',
         submittedAt: '2026-08-12 09:00',
         reviewedAt: '2026-08-13 14:20',
-        reportedToDinasAt: '2026-08-13 14:20'
+        reportedToDinasAt: '2026-08-13 14:20',
+        isCompleted: true,
+        completionScore: 94,
+        score: 94,
+        completionNotes: 'Observasi tatap muka telah selesai. Pembelajaran Berkesadaran terlaksana dengan sangat baik dan murid antusias.',
+        feedback: 'Penguasaan materi luar biasa. Perlu penguatan rubrik diferensiasi asesmen formatif.',
+        supervisorFeedback: {
+          strengths: 'Penguasaan kelas luar biasa, apersepsi membangkitkan rasa ingin tahu murid sangat efektif, integrasi Pembelajaran Berkesadaran (mindful learning) berjalan alami dengan teknik STOP.',
+          improvements: 'Diferensiasi proses bagi murid yang membutuhkan pendampingan lebih lanjut (scaffolding) dapat diperkuat dengan lembar aktivitas berjenjang.',
+          actionPlan: 'Menyusun rubrik asesmen formatif bertingkat pada modul ajar berikutnya dan berbagi praktik baik pada forum KKG Gugus Sukomoro.',
+          category: 'Amat Baik',
+          submittedAt: '2026-08-25 11:30',
+          supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
+          supervisorNip: '196803151992031004',
+          generalNotes: 'Secara keseluruhan proses pembelajaran sangat memuaskan, menciptakan iklim belajar yang aman, nyaman, dan bermakna.'
+        },
+        teacherResponse: {
+          notes: 'Terima kasih banyak atas saran dan bimbingan Bapak Pengawas. Segera saya terapkan lembar aktivitas berjenjang untuk asesmen IPAS bab berikutnya.',
+          submittedAt: '2026-08-26 08:15'
+        }
       },
       {
         id: 'sup-2',
@@ -1285,7 +1304,7 @@ export class DatabaseStore {
         approvedTime: '08:00 - 09:30',
         location: 'Ruang Kelas 6 SDN Tinap 1',
         notes: 'Supervisi tatap muka awal semester.',
-        status: 'DISETUJUI',
+        status: 'SELESAI',
         supervisorId: 'sp-1',
         supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
         createdById: 'u-ks-2',
@@ -1295,7 +1314,18 @@ export class DatabaseStore {
         reportedToDinasAt: '2026-08-02 10:00',
         isCompleted: true,
         completionScore: 95,
-        completionNotes: 'Pelaksanaan supervisi berjalan sangat lancar. Guru menguasai kelas dan materi Pancasila dengan sangat interaktif.'
+        score: 95,
+        completionNotes: 'Pelaksanaan supervisi berjalan sangat lancar. Guru menguasai kelas dan materi Pancasila dengan sangat interaktif.',
+        supervisorFeedback: {
+          strengths: 'Keterampilan bertanya mendalam (probing questions) sangat menonjol. Siswa diajak berdiskusi tentang penerapan nilai-nilai Pancasila dalam pergaulan sehari-hari di sekolah.',
+          improvements: 'Pemanfaatan media tayang digital / interaktif dapat diperbanyak agar dinamika kelompok semakin hidup.',
+          actionPlan: 'Mengintegrasikan kuis interaktif berbasis aplikasi sederhana pada materi berikutnya.',
+          category: 'Amat Baik',
+          submittedAt: '2026-08-08 11:00',
+          supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
+          supervisorNip: '196803151992031004',
+          generalNotes: 'Penyampaian materi dan pembentukan karakter profil pelajar pancasila telah terimplementasi dengan baik.'
+        }
       },
       {
         id: 'sup-8',

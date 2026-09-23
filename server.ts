@@ -202,6 +202,15 @@ async function startServer() {
       }
     }
 
+    if (user.role === 'PENGAWAS') {
+      const supervisor = db.supervisors.find(
+        (sp) => sp.userId === user.id || sp.id === user.id || sp.nip === user.nip
+      );
+      if (supervisor && supervisor.assignedSchoolIds && supervisor.assignedSchoolIds.length > 0) {
+        user.assignedSchoolIds = [...supervisor.assignedSchoolIds];
+      }
+    }
+
     db.addAuditLog(
       user.id,
       user.name,
@@ -305,9 +314,10 @@ async function startServer() {
   // 3. MASTER DATA: SEKOLAH
   // ==========================================
   app.get('/api/schools', (req: Request, res: Response) => {
+    const { supervisorId } = req.query;
     // Deduplicate by ID
     const seen = new Set<string>();
-    const uniqueSchools = [];
+    let uniqueSchools = [];
     for (const s of db.schools) {
       if (!seen.has(s.id)) {
         seen.add(s.id);
@@ -316,8 +326,19 @@ async function startServer() {
     }
     db.schools = uniqueSchools;
 
+    if (supervisorId) {
+      const supervisor = db.supervisors.find(
+        (sp) => sp.id === supervisorId || sp.userId === supervisorId || sp.nip === supervisorId
+      );
+      const user = db.users.find((u) => u.id === supervisorId || u.nip === supervisorId);
+      const assignedIds = supervisor?.assignedSchoolIds || user?.assignedSchoolIds || [];
+      uniqueSchools = uniqueSchools.filter(
+        (s) => assignedIds.includes(s.id) || (supervisor && s.supervisorId === supervisor.id)
+      );
+    }
+
     // calculate teacher counts
-    const schoolsWithCounts = db.schools.map((s) => ({
+    const schoolsWithCounts = uniqueSchools.map((s) => ({
       ...s,
       teacherCount: db.teachers.filter((t) => t.schoolId === s.id && t.status === 'active').length
     }));
@@ -694,8 +715,18 @@ async function startServer() {
   // 4. MASTER DATA: GURU, KEPALA SEKOLAH, PENGAWAS
   // ==========================================
   app.get('/api/teachers', (req: Request, res: Response) => {
-    const { schoolId } = req.query;
+    const { schoolId, supervisorId } = req.query;
     let list = db.teachers;
+
+    if (supervisorId) {
+      const supervisor = db.supervisors.find(
+        (sp) => sp.id === supervisorId || sp.userId === supervisorId || sp.nip === supervisorId
+      );
+      const user = db.users.find((u) => u.id === supervisorId || u.nip === supervisorId);
+      const assignedIds = supervisor?.assignedSchoolIds || user?.assignedSchoolIds || [];
+      list = list.filter((t) => assignedIds.includes(t.schoolId));
+    }
+
     if (schoolId) {
       list = list.filter((t) => t.schoolId === schoolId);
     }
@@ -2433,9 +2464,33 @@ async function startServer() {
     const { schoolId, supervisorId, status, teacherId } = req.query;
     let list = db.supervisionRequests;
     if (schoolId) list = list.filter((s) => s.schoolId === schoolId);
-    if (supervisorId) list = list.filter((s) => s.supervisorId === supervisorId);
+    if (supervisorId) {
+      const supervisor = db.supervisors.find(
+        (sp) => sp.id === supervisorId || sp.userId === supervisorId || sp.nip === supervisorId
+      );
+      const user = db.users.find((u) => u.id === supervisorId || u.nip === supervisorId);
+      const assignedIds = supervisor?.assignedSchoolIds || user?.assignedSchoolIds || [];
+      const supervisorIds = new Set<string>();
+      if (supervisor) {
+        supervisorIds.add(supervisor.id);
+        if (supervisor.userId) supervisorIds.add(supervisor.userId);
+      }
+      supervisorIds.add(String(supervisorId));
+
+      list = list.filter(
+        (s) => supervisorIds.has(s.supervisorId || '') || (s.schoolId && assignedIds.includes(s.schoolId))
+      );
+    }
     if (status) list = list.filter((s) => s.status === status);
-    if (teacherId) list = list.filter((s) => s.teacherId === teacherId);
+    if (teacherId) {
+      const teacher = db.teachers.find((t) => t.id === teacherId || t.userId === teacherId || t.nip === teacherId);
+      const matchedTeacherIds = new Set<string>([String(teacherId)]);
+      if (teacher) {
+        matchedTeacherIds.add(teacher.id);
+        if (teacher.userId) matchedTeacherIds.add(teacher.userId);
+      }
+      list = list.filter((s) => matchedTeacherIds.has(s.teacherId));
+    }
     res.json(list);
   });
 
@@ -2641,6 +2696,120 @@ async function startServer() {
         '/hasil-penilaian'
       );
     }
+
+    res.json(reqItem);
+  });
+
+  app.put('/api/supervision-requests/:id/feedback', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const {
+      strengths,
+      improvements,
+      actionPlan,
+      generalNotes,
+      category,
+      completionScore,
+      supervisorName,
+      supervisorId,
+      supervisorNip
+    } = req.body;
+
+    const reqItem = db.supervisionRequests.find((s) => s.id === id);
+    if (!reqItem) return res.status(404).json({ error: 'Data supervisi tidak ditemukan' });
+
+    const supervisor = db.supervisors.find(
+      (sp) => sp.id === supervisorId || sp.userId === supervisorId || sp.nip === supervisorId
+    ) || db.users.find((u) => u.id === supervisorId);
+
+    const finalSupervisorName = supervisorName || supervisor?.name || reqItem.supervisorName || 'Pengawas Pembina';
+    const finalSupervisorNip = supervisorNip || supervisor?.nip || '';
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 16);
+
+    reqItem.supervisorFeedback = {
+      strengths: strengths !== undefined ? strengths : (reqItem.supervisorFeedback?.strengths || ''),
+      improvements: improvements !== undefined ? improvements : (reqItem.supervisorFeedback?.improvements || ''),
+      actionPlan: actionPlan !== undefined ? actionPlan : (reqItem.supervisorFeedback?.actionPlan || ''),
+      generalNotes: generalNotes !== undefined ? generalNotes : (reqItem.supervisorFeedback?.generalNotes || ''),
+      category: category || reqItem.supervisorFeedback?.category || 'Baik',
+      submittedAt: nowStr,
+      supervisorName: finalSupervisorName,
+      supervisorNip: finalSupervisorNip
+    };
+
+    if (completionScore !== undefined && completionScore !== null) {
+      const numScore = Number(completionScore);
+      reqItem.completionScore = numScore;
+      reqItem.score = numScore;
+    }
+
+    if (generalNotes) {
+      reqItem.completionNotes = generalNotes;
+      reqItem.feedback = generalNotes;
+    }
+    reqItem.isCompleted = true;
+    if (reqItem.status === 'DIAJUKAN' || reqItem.status === 'DISETUJUI') {
+      reqItem.status = 'SELESAI';
+    }
+
+    const teacher = db.teachers.find((t) => t.id === reqItem.teacherId);
+    if (teacher) {
+      teacher.supervisionStatus = 'SELESAI';
+      db.addNotification(
+        teacher.userId,
+        'Catatan & Rekomendasi Supervisi Diterima',
+        `Pengawas ${finalSupervisorName} telah mengentri catatan, saran masukan, dan rencana tindak lanjut hasil supervisi untuk Anda.`,
+        'info',
+        '/catatan-supervisi'
+      );
+    }
+
+    db.addAuditLog(
+      supervisorId || 'u-pengawas-1',
+      finalSupervisorName,
+      'PENGAWAS',
+      'Entri Catatan & Rekomendasi Supervisi',
+      `Pengawas mengentri komentar & rekomendasi supervisi untuk ${reqItem.teacherName} (${reqItem.schoolName}): Skor ${reqItem.completionScore || '-'}, Kategori: ${category || 'Baik'}`,
+      req.ip || '127.0.0.1'
+    );
+
+    res.json(reqItem);
+  });
+
+  app.put('/api/supervision-requests/:id/teacher-response', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { notes, teacherId, teacherName } = req.body;
+
+    const reqItem = db.supervisionRequests.find((s) => s.id === id);
+    if (!reqItem) return res.status(404).json({ error: 'Data supervisi tidak ditemukan' });
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    reqItem.teacherResponse = {
+      notes: notes || '',
+      submittedAt: nowStr
+    };
+
+    // Notify Supervisor
+    const supervisor = db.supervisors.find(
+      (sp) => sp.id === reqItem.supervisorId || sp.name === reqItem.supervisorName
+    );
+    if (supervisor && supervisor.userId) {
+      db.addNotification(
+        supervisor.userId,
+        'Tanggapan Refleksi Guru atas Catatan Supervisi',
+        `Guru ${reqItem.teacherName} telah memberikan tanggapan refleksi atas catatan supervisi yang Anda berikan.`,
+        'success',
+        '/komentar-supervisi'
+      );
+    }
+
+    db.addAuditLog(
+      teacherId || 'u-guru-1',
+      teacherName || reqItem.teacherName,
+      'GURU',
+      'Tanggapan Refleksi Catatan Supervisi',
+      `Guru memberikan refleksi tindak lanjut atas supervisi di ${reqItem.schoolName}`,
+      req.ip || '127.0.0.1'
+    );
 
     res.json(reqItem);
   });

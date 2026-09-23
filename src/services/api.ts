@@ -119,8 +119,9 @@ export const api = {
   },
 
   // Schools
-  async getSchools(): Promise<School[]> {
-    return request<School[]>(`${BASE_URL}/schools`);
+  async getSchools(supervisorId?: string): Promise<School[]> {
+    const url = supervisorId ? `${BASE_URL}/schools?supervisorId=${encodeURIComponent(supervisorId)}` : `${BASE_URL}/schools`;
+    return request<School[]>(url);
   },
 
   async getSchoolById(id: string): Promise<School> {
@@ -164,9 +165,12 @@ export const api = {
   },
 
   // Teachers
-  async getTeachers(schoolId?: string): Promise<Teacher[]> {
-    const url = schoolId ? `${BASE_URL}/teachers?schoolId=${schoolId}` : `${BASE_URL}/teachers`;
-    return request<Teacher[]>(url);
+  async getTeachers(schoolId?: string, supervisorId?: string): Promise<Teacher[]> {
+    const params = new URLSearchParams();
+    if (schoolId) params.append('schoolId', schoolId);
+    if (supervisorId) params.append('supervisorId', supervisorId);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return request<Teacher[]>(`${BASE_URL}/teachers${query}`);
   },
 
   async createTeacher(data: Partial<Teacher>): Promise<Teacher> {
@@ -511,6 +515,42 @@ export const api = {
     supervisorId?: string;
   }): Promise<SupervisionRequest> {
     return request<SupervisionRequest>(`${BASE_URL}/supervision-requests/${id}/complete`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async saveSupervisionFeedback(
+    id: string,
+    data: {
+      strengths?: string;
+      improvements?: string;
+      actionPlan?: string;
+      generalNotes?: string;
+      category?: string;
+      completionScore?: number;
+      supervisorName?: string;
+      supervisorId?: string;
+      supervisorNip?: string;
+    }
+  ): Promise<SupervisionRequest> {
+    return request<SupervisionRequest>(`${BASE_URL}/supervision-requests/${id}/feedback`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async saveTeacherSupervisionResponse(
+    id: string,
+    data: {
+      notes: string;
+      teacherId?: string;
+      teacherName?: string;
+    }
+  ): Promise<SupervisionRequest> {
+    return request<SupervisionRequest>(`${BASE_URL}/supervision-requests/${id}/teacher-response`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)

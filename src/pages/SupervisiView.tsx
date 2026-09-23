@@ -70,8 +70,8 @@ export const SupervisiView: React.FC = () => {
       const supervisorFilter = currentRole === 'PENGAWAS' ? currentUser?.id : undefined;
 
       const [tList, schList] = await Promise.all([
-        api.getTeachers(schoolFilter),
-        api.getSchools()
+        api.getTeachers(schoolFilter, supervisorFilter),
+        api.getSchools(supervisorFilter)
       ]);
 
       const myTeacher =
