@@ -23,6 +23,7 @@ import { TampilanTemplateView } from './pages/TampilanTemplateView';
 import { PengawasSekolahView } from './pages/PengawasSekolahView';
 import { DashboardKinerjaGuruView } from './pages/DashboardKinerjaGuruView';
 import { KomentarSupervisiView } from './pages/KomentarSupervisiView';
+import { CatatanReflektifGuruView } from './pages/CatatanReflektifGuruView';
 import { LoginView } from './pages/LoginView';
 
 const AccessDeniedView: React.FC<{ onBackToDashboard: () => void }> = ({ onBackToDashboard }) => (
@@ -69,6 +70,8 @@ const MainLayout: React.FC = () => {
         'pembelajaran-mendalam',
         'kalender',
         'catatan-supervisi',
+        'catatan-reflektif-guru',
+        'refleksi-guru',
         'komentar-supervisi',
         'hasil-supervisi'
       ];
@@ -90,6 +93,8 @@ const MainLayout: React.FC = () => {
         'supervisi',
         'komentar-supervisi',
         'catatan-supervisi',
+        'catatan-reflektif-guru',
+        'refleksi-guru',
         'hasil-supervisi',
         'kalender',
         'laporan',
@@ -113,6 +118,8 @@ const MainLayout: React.FC = () => {
         'supervisi',
         'komentar-supervisi',
         'catatan-supervisi',
+        'catatan-reflektif-guru',
+        'refleksi-guru',
         'hasil-supervisi',
         'kalender',
         'modul-ajar',
@@ -200,6 +207,10 @@ const MainLayout: React.FC = () => {
       case 'catatan-supervisi':
       case 'hasil-supervisi':
         return <KomentarSupervisiView />;
+      case 'catatan-reflektif-guru':
+      case 'refleksi-guru':
+      case 'catatan-refleksi':
+        return <CatatanReflektifGuruView />;
       case 'kalender':
         return <KalenderSupervisiView />;
       case 'cetak-laporan':

@@ -44,6 +44,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /reflectiveNotes/{noteId} {
+      allow read, write: if true;
+    }
+
     // Connection test document
     match /test/{docId} {
       allow read, write: if true;

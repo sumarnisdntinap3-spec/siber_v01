@@ -27,6 +27,8 @@ import {
   syncSupervisorToFirebase,
   deleteSupervisorFromFirebase,
   syncSupervisionToFirebase,
+  syncReflectiveNoteToFirebase,
+  deleteReflectiveNoteFromFirebase,
   FIREBASE_PROJECT_ID,
   FIREBASE_DATABASE_ID
 } from './server/firebase.js';
@@ -162,24 +164,33 @@ async function startServer() {
         if (ok) supervisionsSynced++;
       }
 
-      // 5. Trigger Google Sheets auto-sync if configured
+      // 5. Sync Catatan Reflektif Guru
+      let reflectiveNotesSynced = 0;
+      for (const note of db.reflectiveNotes) {
+        const ok = await syncReflectiveNoteToFirebase(note);
+        if (ok) reflectiveNotesSynced++;
+      }
+
+      // 6. Trigger Google Sheets auto-sync if configured
       if (currentGoogleSheetsConfig.autoSync && currentGoogleSheetsConfig.webhookUrl) {
         sendToGoogleSheetsWebhook(currentGoogleSheetsConfig.webhookUrl, {
           schools: db.schools,
           teachers: db.teachers,
           supervisors: db.supervisors,
-          supervisions: db.supervisionRequests
+          supervisions: db.supervisionRequests,
+          reflectiveNotes: db.reflectiveNotes
         }).catch((e) => console.warn('[GoogleSheets] Auto-sync background error:', e));
       }
 
       res.json({
         success: true,
-        message: `Sinkronisasi Firebase Firestore berhasil: ${schoolsSynced} sekolah, ${supervisorsSynced} pengawas, ${teachersSynced} guru, ${supervisionsSynced} jadwal/hasil supervisi`,
+        message: `Sinkronisasi Firebase Firestore berhasil: ${schoolsSynced} sekolah, ${supervisorsSynced} pengawas, ${teachersSynced} guru, ${supervisionsSynced} jadwal/hasil supervisi, ${reflectiveNotesSynced} catatan reflektif guru`,
         synced: {
           schools: schoolsSynced,
           supervisors: supervisorsSynced,
           teachers: teachersSynced,
-          supervisions: supervisionsSynced
+          supervisions: supervisionsSynced,
+          reflectiveNotes: reflectiveNotesSynced
         }
       });
     } catch (err: any) {
@@ -2986,6 +2997,297 @@ async function startServer() {
     );
 
     res.json(reqItem);
+  });
+
+  // ==========================================
+  // 10C. MODUL CATATAN REFLEKTIF GURU (FIRESTORE INTEGRATED)
+  // ==========================================
+  app.get('/api/reflective-notes', (req: Request, res: Response) => {
+    const { supervisionId, teacherId, supervisorId, schoolId, status } = req.query;
+    let list = [...db.reflectiveNotes];
+
+    if (supervisionId) {
+      list = list.filter((r) => r.supervisionId === supervisionId);
+    }
+    if (teacherId) {
+      const teacher = db.teachers.find(
+        (t) => t.id === teacherId || t.userId === teacherId || t.nip === teacherId
+      );
+      const teacherIds = new Set<string>();
+      if (teacher) {
+        teacherIds.add(teacher.id);
+        if (teacher.userId) teacherIds.add(teacher.userId);
+        if (teacher.nip) teacherIds.add(teacher.nip);
+      }
+      teacherIds.add(String(teacherId));
+      list = list.filter((r) => teacherIds.has(r.teacherId) || (teacher && r.teacherNip === teacher.nip));
+    }
+    if (schoolId) {
+      list = list.filter((r) => r.schoolId === schoolId);
+    }
+    if (supervisorId) {
+      const supervisor = db.supervisors.find(
+        (sp) => sp.id === supervisorId || sp.userId === supervisorId || sp.nip === supervisorId
+      );
+      const assignedSchoolIds = supervisor?.assignedSchoolIds || [];
+      const supervisorIds = new Set<string>();
+      if (supervisor) {
+        supervisorIds.add(supervisor.id);
+        if (supervisor.userId) supervisorIds.add(supervisor.userId);
+      }
+      supervisorIds.add(String(supervisorId));
+
+      list = list.filter(
+        (r) =>
+          (r.supervisorId && supervisorIds.has(r.supervisorId)) ||
+          assignedSchoolIds.includes(r.schoolId)
+      );
+    }
+    if (status && status !== 'ALL') {
+      list = list.filter((r) => r.status === status);
+    }
+
+    list.sort((a, b) => new Date(b.reflectionDate || b.createdAt).getTime() - new Date(a.reflectionDate || a.createdAt).getTime());
+    res.json(list);
+  });
+
+  app.get('/api/reflective-notes/:id', (req: Request, res: Response) => {
+    const note = db.reflectiveNotes.find((r) => r.id === req.params.id);
+    if (!note) return res.status(404).json({ error: 'Catatan reflektif guru tidak ditemukan' });
+    res.json(note);
+  });
+
+  app.post('/api/reflective-notes', async (req: Request, res: Response) => {
+    try {
+      const {
+        supervisionId,
+        teacherId,
+        teacherName,
+        teacherNip,
+        teacherEmail,
+        schoolId,
+        schoolName,
+        supervisorId,
+        supervisorName,
+        subject,
+        grade,
+        topic,
+        supervisionDate,
+        reflectionDate,
+        whatWentWell,
+        challengesFaced,
+        studentResponse,
+        actionPlanForNext,
+        satisfactionScore,
+        supportNeeded,
+        status
+      } = req.body;
+
+      // Find teacher details if missing
+      const teacher = db.teachers.find((t) => t.id === teacherId || t.userId === teacherId);
+      const school = db.schools.find((s) => s.id === (schoolId || teacher?.schoolId));
+      const supervision = supervisionId ? db.supervisionRequests.find((s) => s.id === supervisionId) : null;
+
+      const finalTeacherId = teacher?.id || teacherId || 't-1';
+      const finalTeacherName = teacherName || teacher?.name || 'Guru';
+      const finalSchoolId = schoolId || teacher?.schoolId || school?.id || 'sch-1';
+      const finalSchoolName = schoolName || teacher?.schoolName || school?.name || 'SD Negeri Magetan';
+      const finalSupervisorId = supervisorId || supervision?.supervisorId || school?.supervisorId || 'sp-1';
+      const finalSupervisorName = supervisorName || supervision?.supervisorName || school?.supervisorName || 'Pengawas Pembina';
+
+      const nowIso = new Date().toISOString();
+      const newNote = {
+        id: `ref-${Date.now()}`,
+        supervisionId: supervisionId || supervision?.id || '',
+        teacherId: finalTeacherId,
+        teacherName: finalTeacherName,
+        teacherNip: teacherNip || teacher?.nip || '',
+        teacherEmail: teacherEmail || teacher?.email || '',
+        schoolId: finalSchoolId,
+        schoolName: finalSchoolName,
+        supervisorId: finalSupervisorId,
+        supervisorName: finalSupervisorName,
+        subject: subject || supervision?.subject || teacher?.subject || 'Umum',
+        grade: grade || supervision?.gradeClass || teacher?.classGrade || 'Semua Kelas',
+        topic: topic || 'Pembelajaran Tematik & Mendalam',
+        supervisionDate: supervisionDate || supervision?.approvedDate || supervision?.proposedDate1 || '',
+        reflectionDate: reflectionDate || nowIso.split('T')[0],
+        whatWentWell: whatWentWell || '',
+        challengesFaced: challengesFaced || '',
+        studentResponse: studentResponse || '',
+        actionPlanForNext: actionPlanForNext || '',
+        satisfactionScore: Number(satisfactionScore) || 85,
+        supportNeeded: supportNeeded || '',
+        supervisorFeedback: '',
+        supervisorFeedbackDate: '',
+        supervisorFeedbackBy: '',
+        status: status || 'DIKIRIM',
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      db.reflectiveNotes.unshift(newNote);
+
+      // Automatically sync to Firebase Firestore
+      let syncedToFirestore = false;
+      try {
+        syncedToFirestore = await syncReflectiveNoteToFirebase(newNote);
+      } catch (fErr) {
+        console.warn('[Firestore] Sync reflective note failed:', fErr);
+      }
+
+      // Notify Supervisor
+      const supervisor = db.supervisors.find(
+        (sp) => sp.id === finalSupervisorId || sp.name === finalSupervisorName
+      );
+      if (supervisor && supervisor.userId) {
+        db.addNotification(
+          supervisor.userId,
+          'Catatan Reflektif Guru Baru Dikirimkan',
+          `Guru ${finalTeacherName} (${finalSchoolName}) telah mengirimkan catatan refleksi diri pasca-supervisi untuk ditinjau.`,
+          'info',
+          '/catatan-reflektif-guru'
+        );
+      }
+
+      db.addAuditLog(
+        teacher?.userId || finalTeacherId,
+        finalTeacherName,
+        'GURU',
+        'Pengisian Catatan Reflektif Guru',
+        `Guru menulis refleksi diri supervisi mata pelajaran ${newNote.subject} di ${finalSchoolName}`,
+        req.ip || '127.0.0.1'
+      );
+
+      res.status(201).json({
+        ...newNote,
+        syncedToFirestore
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/reflective-notes/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const index = db.reflectiveNotes.findIndex((r) => r.id === id);
+      if (index === -1) return res.status(404).json({ error: 'Catatan reflektif tidak ditemukan' });
+
+      const existing = db.reflectiveNotes[index];
+      const {
+        whatWentWell,
+        challengesFaced,
+        studentResponse,
+        actionPlanForNext,
+        satisfactionScore,
+        supportNeeded,
+        supervisorFeedback,
+        supervisorFeedbackBy,
+        status,
+        topic,
+        subject,
+        grade
+      } = req.body;
+
+      const nowIso = new Date().toISOString();
+      const isSupervisorReviewing = supervisorFeedback !== undefined && supervisorFeedback !== existing.supervisorFeedback;
+
+      const updated = {
+        ...existing,
+        whatWentWell: whatWentWell !== undefined ? whatWentWell : existing.whatWentWell,
+        challengesFaced: challengesFaced !== undefined ? challengesFaced : existing.challengesFaced,
+        studentResponse: studentResponse !== undefined ? studentResponse : existing.studentResponse,
+        actionPlanForNext: actionPlanForNext !== undefined ? actionPlanForNext : existing.actionPlanForNext,
+        satisfactionScore: satisfactionScore !== undefined ? Number(satisfactionScore) : existing.satisfactionScore,
+        supportNeeded: supportNeeded !== undefined ? supportNeeded : existing.supportNeeded,
+        topic: topic !== undefined ? topic : existing.topic,
+        subject: subject !== undefined ? subject : existing.subject,
+        grade: grade !== undefined ? grade : existing.grade,
+        supervisorFeedback: supervisorFeedback !== undefined ? supervisorFeedback : existing.supervisorFeedback,
+        supervisorFeedbackBy: isSupervisorReviewing ? (supervisorFeedbackBy || existing.supervisorName || 'Pengawas') : existing.supervisorFeedbackBy,
+        supervisorFeedbackDate: isSupervisorReviewing ? nowIso.replace('T', ' ').slice(0, 16) : existing.supervisorFeedbackDate,
+        status: status || (isSupervisorReviewing ? 'DITINJAU_PENGAWAS' : existing.status),
+        updatedAt: nowIso
+      };
+
+      db.reflectiveNotes[index] = updated;
+
+      // Automatically sync to Firebase Firestore
+      let syncedToFirestore = false;
+      try {
+        syncedToFirestore = await syncReflectiveNoteToFirebase(updated);
+      } catch (fErr) {
+        console.warn('[Firestore] Update reflective note sync failed:', fErr);
+      }
+
+      // If supervisor provided feedback, notify the teacher!
+      if (isSupervisorReviewing) {
+        const teacher = db.teachers.find(
+          (t) => t.id === existing.teacherId || t.name === existing.teacherName
+        );
+        if (teacher && teacher.userId) {
+          db.addNotification(
+            teacher.userId,
+            'Pengawas Memberikan Umpan Balik Refleksi',
+            `Pengawas ${updated.supervisorFeedbackBy} telah meninjau catatan reflektif Anda dan memberikan apresiasi & umpan balik.`,
+            'success',
+            '/catatan-reflektif-guru'
+          );
+        }
+
+        db.addAuditLog(
+          'u-pengawas',
+          updated.supervisorFeedbackBy || 'Pengawas',
+          'PENGAWAS',
+          'Peninjauan Catatan Reflektif Guru',
+          `Pengawas memberikan feedback refleksi untuk guru ${existing.teacherName} (${existing.schoolName})`,
+          req.ip || '127.0.0.1'
+        );
+      }
+
+      res.json({
+        ...updated,
+        syncedToFirestore
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/reflective-notes/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const index = db.reflectiveNotes.findIndex((r) => r.id === id);
+      if (index === -1) return res.status(404).json({ error: 'Catatan reflektif tidak ditemukan' });
+
+      const [removed] = db.reflectiveNotes.splice(index, 1);
+
+      // Delete from Firestore
+      let deletedFromFirestore = false;
+      try {
+        deletedFromFirestore = await deleteReflectiveNoteFromFirebase(id);
+      } catch (fErr) {
+        console.warn('[Firestore] Delete reflective note failed:', fErr);
+      }
+
+      db.addAuditLog(
+        removed.teacherId,
+        removed.teacherName,
+        'GURU',
+        'Hapus Catatan Reflektif Guru',
+        `Menghapus catatan reflektif ${removed.subject} (${removed.id})`,
+        req.ip || '127.0.0.1'
+      );
+
+      res.json({
+        success: true,
+        message: 'Catatan reflektif berhasil dihapus',
+        deletedFromFirestore
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ==========================================

@@ -581,3 +581,36 @@ export interface TeacherPerformanceOverview {
   improvementAreas: string[];
   summaryRecommendations: string[];
 }
+
+export interface ReflectiveNote {
+  id: string;
+  supervisionId?: string;
+  teacherId: string;
+  teacherName: string;
+  teacherNip?: string;
+  teacherEmail?: string;
+  schoolId: string;
+  schoolName: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  subject: string;
+  grade?: string;
+  topic?: string;
+  supervisionDate?: string;
+  reflectionDate: string;
+  // 4 Pilar Dimensi Refleksi Pembelajaran Berdampak
+  whatWentWell: string; // Apa yang sudah berjalan baik & efektif dalam KBM
+  challengesFaced: string; // Kendala, kesulitan atau hal yang belum optimal
+  studentResponse: string; // Respon, dinamika keterlibatan & pemahaman murid
+  actionPlanForNext: string; // Rencana perbaikan konkret pada pertemuan berikutnya
+  satisfactionScore: number; // 1-100 Skala kepuasan diri guru
+  supportNeeded?: string; // Fasilitasi / bimbingan yang diharapkan dari pengawas
+  // Tanggapan / Umpan Balik Pengawas Sekolah
+  supervisorFeedback?: string; // Catatan pembinaan klinis dan apresiasi pengawas
+  supervisorFeedbackDate?: string;
+  supervisorFeedbackBy?: string;
+  status: 'DRAFT' | 'DIKIRIM' | 'DITINJAU_PENGAWAS' | 'SELESAI';
+  createdAt: string;
+  updatedAt: string;
+}
+

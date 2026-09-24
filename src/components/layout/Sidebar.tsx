@@ -21,7 +21,8 @@ import {
   Palette,
   TrendingUp,
   Printer,
-  MessageSquareQuote
+  MessageSquareQuote,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeColorKey } from '../../types';
@@ -42,6 +43,7 @@ export type NavigationTab =
   | 'supervisi'
   | 'komentar-supervisi'
   | 'catatan-supervisi'
+  | 'catatan-reflektif-guru'
   | 'kalender'
   | 'laporan'
   | 'cetak-laporan'
@@ -311,6 +313,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Catatan Masukan Supervisi</span>
             </button>
             <button
+              id="sidebar-nav-dinas-reflektif"
+              onClick={() => handleNavClick('catatan-reflektif-guru')}
+              className={navItemClass('catatan-reflektif-guru')}
+            >
+              <FileText className={iconClass('catatan-reflektif-guru')} />
+              <span>Catatan Reflektif Guru</span>
+            </button>
+            <button
               onClick={() => handleNavClick('kalender')}
               className={navItemClass('kalender')}
             >
@@ -419,6 +429,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <MessageSquareQuote className={iconClass('komentar-supervisi')} />
               <span>Entri Komentar Supervisi</span>
+            </button>
+            <button
+              id="sidebar-nav-pengawas-reflektif"
+              onClick={() => handleNavClick('catatan-reflektif-guru')}
+              className={navItemClass('catatan-reflektif-guru')}
+            >
+              <FileText className={iconClass('catatan-reflektif-guru')} />
+              <span>Catatan Reflektif Guru</span>
             </button>
             <button
               onClick={() => handleNavClick('kalender')}
@@ -564,6 +582,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Catatan Masukan Pengawas</span>
             </button>
             <button
+              id="sidebar-nav-ks-reflektif"
+              onClick={() => handleNavClick('catatan-reflektif-guru')}
+              className={navItemClass('catatan-reflektif-guru')}
+            >
+              <FileText className={iconClass('catatan-reflektif-guru')} />
+              <span>Catatan Reflektif Guru</span>
+            </button>
+            <button
               id="sidebar-nav-ks-cetak-laporan"
               onClick={() => handleNavClick('cetak-laporan')}
               className={navItemClass('cetak-laporan')}
@@ -659,6 +685,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <MessageSquareQuote className={iconClass('catatan-supervisi')} />
               <span>Catatan Masukan Pengawas</span>
+            </button>
+            <button
+              id="sidebar-nav-guru-reflektif"
+              onClick={() => handleNavClick('catatan-reflektif-guru')}
+              className={navItemClass('catatan-reflektif-guru')}
+            >
+              <FileText className={iconClass('catatan-reflektif-guru')} />
+              <span>Catatan Reflektif Guru</span>
             </button>
           </>
         );

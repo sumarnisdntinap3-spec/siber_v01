@@ -230,6 +230,7 @@ export async function sendToGoogleSheetsWebhook(
     teachers: any[];
     supervisors: any[];
     supervisions: any[];
+    reflectiveNotes?: any[];
   }
 ): Promise<{ success: boolean; message: string }> {
   if (!webhookUrl || !webhookUrl.startsWith('http')) {

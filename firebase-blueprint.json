@@ -141,6 +141,40 @@
         "timestamp": { "type": "string", "description": "Timestamp string" }
       },
       "required": ["id", "userId", "activity", "timestamp"]
+    },
+    "ReflectiveNote": {
+      "title": "ReflectiveNote",
+      "description": "Teacher post-supervision self-reflection and pedagogical assessment records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique reflection note ID" },
+        "supervisionId": { "type": "string", "description": "Linked supervision session ID" },
+        "teacherId": { "type": "string", "description": "Author teacher ID" },
+        "teacherName": { "type": "string", "description": "Author teacher name" },
+        "teacherNip": { "type": "string", "description": "Teacher NIP" },
+        "teacherEmail": { "type": "string", "description": "Teacher email" },
+        "schoolId": { "type": "string", "description": "School ID" },
+        "schoolName": { "type": "string", "description": "School name" },
+        "supervisorId": { "type": "string", "description": "Supervisor ID" },
+        "supervisorName": { "type": "string", "description": "Supervisor name" },
+        "subject": { "type": "string", "description": "Subject taught" },
+        "grade": { "type": "string", "description": "Grade / Class" },
+        "topic": { "type": "string", "description": "Learning topic / material" },
+        "supervisionDate": { "type": "string", "description": "Date supervision was held" },
+        "reflectionDate": { "type": "string", "description": "Date reflection was completed" },
+        "whatWentWell": { "type": "string", "description": "What went well during the lesson" },
+        "challengesFaced": { "type": "string", "description": "Challenges and obstacles faced" },
+        "studentResponse": { "type": "string", "description": "Student engagement and conceptual comprehension" },
+        "actionPlanForNext": { "type": "string", "description": "Concrete improvements planned for next lesson" },
+        "satisfactionScore": { "type": "number", "description": "Self satisfaction score (1-100)" },
+        "supportNeeded": { "type": "string", "description": "Coaching/support requested from supervisor" },
+        "supervisorFeedback": { "type": "string", "description": "Review and feedback by supervisor" },
+        "supervisorFeedbackDate": { "type": "string", "description": "Date supervisor reviewed the reflection" },
+        "status": { "type": "string", "enum": ["DRAFT", "DIKIRIM", "DITINJAU_PENGAWAS", "SELESAI"] },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["id", "teacherId", "schoolId", "subject", "whatWentWell", "status"]
     }
   },
   "firestore": {
@@ -175,6 +209,10 @@
     "/auditLogs/{logId}": {
       "schema": "AuditLog",
       "description": "Security and activity audit trails"
+    },
+    "/reflectiveNotes/{noteId}": {
+      "schema": "ReflectiveNote",
+      "description": "Teacher post-supervision reflections reviewed by school supervisors"
     }
   }
 }

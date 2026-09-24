@@ -20,7 +20,8 @@ import {
   AuditLog,
   AppSettings,
   TeacherPeriodTrend,
-  TeacherPerformanceOverview
+  TeacherPerformanceOverview,
+  ReflectiveNote
 } from '../types';
 
 const BASE_URL = '/api';
@@ -554,6 +555,44 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
+    });
+  },
+
+  // Catatan Reflektif Guru (Firestore Integrated)
+  async getReflectiveNotes(params?: {
+    supervisionId?: string;
+    teacherId?: string;
+    supervisorId?: string;
+    schoolId?: string;
+    status?: string;
+  }): Promise<ReflectiveNote[]> {
+    const query = new URLSearchParams(params as any).toString();
+    return request<ReflectiveNote[]>(`${BASE_URL}/reflective-notes${query ? '?' + query : ''}`);
+  },
+
+  async getReflectiveNoteById(id: string): Promise<ReflectiveNote> {
+    return request<ReflectiveNote>(`${BASE_URL}/reflective-notes/${id}`);
+  },
+
+  async createReflectiveNote(data: Partial<ReflectiveNote>): Promise<ReflectiveNote & { syncedToFirestore?: boolean }> {
+    return request<ReflectiveNote & { syncedToFirestore?: boolean }>(`${BASE_URL}/reflective-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateReflectiveNote(id: string, data: Partial<ReflectiveNote>): Promise<ReflectiveNote & { syncedToFirestore?: boolean }> {
+    return request<ReflectiveNote & { syncedToFirestore?: boolean }>(`${BASE_URL}/reflective-notes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteReflectiveNote(id: string): Promise<{ success: boolean; message: string; deletedFromFirestore?: boolean }> {
+    return request<{ success: boolean; message: string; deletedFromFirestore?: boolean }>(`${BASE_URL}/reflective-notes/${id}`, {
+      method: 'DELETE'
     });
   },
 

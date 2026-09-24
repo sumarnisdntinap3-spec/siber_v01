@@ -211,11 +211,12 @@ export async function checkFirebaseHealth(): Promise<{
     }
 
     // Probe collections count
-    const [schools, teachers, supervisors, supervisions] = await Promise.all([
+    const [schools, teachers, supervisors, supervisions, reflectiveNotes] = await Promise.all([
       listFirestoreDocs('schools', 50).catch(() => []),
       listFirestoreDocs('teachers', 50).catch(() => []),
       listFirestoreDocs('supervisors', 50).catch(() => []),
-      listFirestoreDocs('supervisions', 50).catch(() => [])
+      listFirestoreDocs('supervisions', 50).catch(() => []),
+      listFirestoreDocs('reflectiveNotes', 50).catch(() => [])
     ]);
 
     return {
@@ -227,7 +228,8 @@ export async function checkFirebaseHealth(): Promise<{
         schools: schools.length,
         teachers: teachers.length,
         supervisors: supervisors.length,
-        supervisions: supervisions.length
+        supervisions: supervisions.length,
+        reflectiveNotes: reflectiveNotes.length
       }
     };
   } catch (err: any) {
@@ -352,3 +354,47 @@ export async function deleteTeacherFromFirebase(teacherId: string): Promise<bool
 export async function deleteSupervisorFromFirebase(supervisorId: string): Promise<boolean> {
   return deleteFirestoreDoc('supervisors', supervisorId);
 }
+
+/**
+ * Synchronize single reflective note to Firestore
+ */
+export async function syncReflectiveNoteToFirebase(note: any): Promise<boolean> {
+  if (!note || !note.id) return false;
+  return writeFirestoreDoc('reflectiveNotes', note.id, {
+    id: note.id,
+    supervisionId: note.supervisionId || '',
+    teacherId: note.teacherId || '',
+    teacherName: note.teacherName || '',
+    teacherNip: note.teacherNip || '',
+    teacherEmail: note.teacherEmail || '',
+    schoolId: note.schoolId || '',
+    schoolName: note.schoolName || '',
+    supervisorId: note.supervisorId || '',
+    supervisorName: note.supervisorName || '',
+    subject: note.subject || '',
+    grade: note.grade || '',
+    topic: note.topic || '',
+    supervisionDate: note.supervisionDate || '',
+    reflectionDate: note.reflectionDate || new Date().toISOString().split('T')[0],
+    whatWentWell: note.whatWentWell || '',
+    challengesFaced: note.challengesFaced || '',
+    studentResponse: note.studentResponse || '',
+    actionPlanForNext: note.actionPlanForNext || '',
+    satisfactionScore: Number(note.satisfactionScore) || 85,
+    supportNeeded: note.supportNeeded || '',
+    supervisorFeedback: note.supervisorFeedback || '',
+    supervisorFeedbackDate: note.supervisorFeedbackDate || '',
+    supervisorFeedbackBy: note.supervisorFeedbackBy || '',
+    status: note.status || 'DIKIRIM',
+    createdAt: note.createdAt || new Date().toISOString(),
+    updatedAt: note.updatedAt || new Date().toISOString()
+  });
+}
+
+/**
+ * Delete reflective note from Firestore
+ */
+export async function deleteReflectiveNoteFromFirebase(noteId: string): Promise<boolean> {
+  return deleteFirestoreDoc('reflectiveNotes', noteId);
+}
+

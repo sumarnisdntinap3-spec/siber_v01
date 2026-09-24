@@ -16,7 +16,8 @@ import {
   SupervisionRequest,
   NotificationItem,
   AuditLog,
-  AppSettings
+  AppSettings,
+  ReflectiveNote
 } from '../../src/types/index.js';
 
 // Global in-memory persistence store with default seeds
@@ -36,6 +37,7 @@ export class DatabaseStore {
   deepLearningAspects: DeepLearningAspect[] = [];
   deepLearningAssessments: DeepLearningAssessment[] = [];
   supervisionRequests: SupervisionRequest[] = [];
+  reflectiveNotes: ReflectiveNote[] = [];
   notifications: NotificationItem[] = [];
   auditLogs: AuditLog[] = [];
   appSettings: AppSettings = {
@@ -1517,6 +1519,68 @@ export class DatabaseStore {
         details: 'Menyelesaikan evaluasi 10 aspek Pembelajaran Mendalam untuk Sumarni, S.Pd.SD. (Kategori: Mahir, Skor 92).',
         ipAddress: '192.168.1.18',
         timestamp: '2026-08-14 11:25:40'
+      }
+    ];
+
+    // 14. Catatan Reflektif Guru (Post-Supervision Teacher Self-Reflections)
+    this.reflectiveNotes = [
+      {
+        id: 'ref-1',
+        supervisionId: 'sup-1',
+        teacherId: 't-1',
+        teacherName: 'Sumarni, S.Pd.SD.',
+        teacherNip: '198504152009022007',
+        teacherEmail: 'sumarni.sdntinap3@gmail.com',
+        schoolId: 'sch-1',
+        schoolName: 'SD Negeri Tinap 3',
+        supervisorId: 'sp-1',
+        supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
+        subject: 'IPAS (Kelas 4)',
+        grade: 'Kelas 4A',
+        topic: 'Wujud Zat dan Perubahannya (Siklus Air & Eksplorasi Sains)',
+        supervisionDate: '2026-08-25',
+        reflectionDate: '2026-08-25',
+        whatWentWell: 'Penerapan apersepsi kontekstual dengan teknik STOP (mindfulness) berhasil menarik perhatian murid di awal KBM. Siswa sangat antusias melakukan percobaan sederhana perubahan wujud benda dalam kelompok kecil, dan hampir seluruh murid mampu mempresentasikan kesimpulannya dengan percaya diri.',
+        challengesFaced: 'Manajemen waktu pada saat pergantian sesi diskusi kelompok ke presentasi pleno sempat molor 10 menit. Ada 2 murid yang masih pasif dan membutuhkan pendampingan khusus saat mencatat data pengamatan LKPD.',
+        studentResponse: 'Murid sangat aktif bertanya, berani mengemukakan hipotesis, dan menunjukkan rasa ingin tahu tinggi. Respon verbal siswa mencerminkan pemahaman konsep perubahan wujud zat yang mendalam dan tidak sekadar hafalan.',
+        actionPlanForNext: '1. Menyusun lembar aktivitas berjenjang (diferensiasi proses) bagi murid yang membutuhkan perancah/scaffolding tambahan. 2. Memasang visual timer agar durasi diskusi kelompok lebih disiplin. 3. Berbagi praktik baik integrasi Pembelajaran Berkesadaran di komunitas belajar KKG Gugus Sukomoro.',
+        satisfactionScore: 92,
+        supportNeeded: 'Bimbingan pengawas dalam merancang instrumen rubrik asesmen formatif berjenjang (tier assessment) berbasis rubrik analitik pada Kurikulum Merdeka.',
+        supervisorFeedback: 'Refleksi mandiri yang sangat matang dan objektif dari Ibu Sumarni. Kesadaran untuk memperhatikan murid yang memerlukan scaffolding tambahan adalah wujud dedikasi pedagogik sejati. Saya akan jadwalkan sesi coaching khusus mengenai tier assessment pada kunjungan berikutnya.',
+        supervisorFeedbackDate: '2026-08-26 10:15',
+        supervisorFeedbackBy: 'Drs. H. Bambang Sutrisno, M.Pd.',
+        status: 'DITINJAU_PENGAWAS',
+        createdAt: '2026-08-25 13:00:00',
+        updatedAt: '2026-08-26 10:15:00'
+      },
+      {
+        id: 'ref-2',
+        supervisionId: 'sup-7',
+        teacherId: 't-5',
+        teacherName: 'Ratna Sari, S.Pd.',
+        teacherNip: '199108202019032011',
+        teacherEmail: 'ratna.sdntinap1@gmail.com',
+        schoolId: 'sch-2',
+        schoolName: 'SD Negeri Tinap 1',
+        supervisorId: 'sp-1',
+        supervisorName: 'Drs. H. Bambang Sutrisno, M.Pd.',
+        subject: 'Pendidikan Pancasila (Kelas 6)',
+        grade: 'Kelas 6',
+        topic: 'Penerapan Nilai-Nilai Pancasila dalam Kehidupan Berbangsa',
+        supervisionDate: '2026-08-08',
+        reflectionDate: '2026-08-08',
+        whatWentWell: 'Strategi studi kasus berbasis video pendek tentang gotong royong berhasil memicu debat positif antar kelompok. Murid mampu menghubungkan sila ke-3 dengan contoh nyata di lingkungan sekolah.',
+        challengesFaced: 'Koneksi proyektor sempat bermasalah beberapa menit dan beberapa kelompok mendominasi sesi tanya jawab sehingga siswa pemalu kurang leluasa berpendapat.',
+        studentResponse: 'Keterlibatan emosional murid sangat baik, siswa menunjukkan empati tinggi saat menganalisis studi kasus konflik sosial dan solusinya.',
+        actionPlanForNext: 'Menggunakan teknik "Think-Pair-Share" dan kartu giliran bicara (talking chips) agar setiap anggota kelompok memiliki porsi bicara yang seimbang.',
+        satisfactionScore: 88,
+        supportNeeded: 'Rekomendasi bank studi kasus kontekstual kearifan lokal Jawa Timur / Magetan untuk materi Pancasila.',
+        supervisorFeedback: 'Langkah pemecahan masalah dengan Talking Chips sangat tepat. Refleksi yang sangat konstruktif. Terus tingkatkan iklim kelas partisipatif.',
+        supervisorFeedbackDate: '2026-08-09 09:30',
+        supervisorFeedbackBy: 'Drs. H. Bambang Sutrisno, M.Pd.',
+        status: 'DITINJAU_PENGAWAS',
+        createdAt: '2026-08-08 14:00:00',
+        updatedAt: '2026-08-09 09:30:00'
       }
     ];
   }
